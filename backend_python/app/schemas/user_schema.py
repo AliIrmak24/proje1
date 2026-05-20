@@ -1,0 +1,30 @@
+# app/schemas/user_schema.py
+# User verisi için Pydantic şeması
+
+from datetime import datetime
+from pydantic import BaseModel, EmailStr
+
+class UserCreate(BaseModel):
+    username: str
+    email: EmailStr
+    password: str
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    email: EmailStr
+    xp: int
+    level: int
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+        from_attributes = True
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
