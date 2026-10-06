@@ -1,6 +1,30 @@
+# Virtual Environment
 .venv/
+env/
+venv/
+
+# Python Cache
 __pycache__/
-.env
+*.py[cod]
+*$py.class
 *.pyc
+
+# Environment & Database
+.env
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# Flutter & Dart Build & Cache
+.dart_tool/
+**/build/
+**/.dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
+ephemeral/
+**/ephemeral/
+
+# IDE files
+.idea/
+*.iml

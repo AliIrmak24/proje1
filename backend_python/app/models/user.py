@@ -13,4 +13,10 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     xp = Column(Integer, default=0)
     level = Column(Integer, default=1)
+    bio = Column(String, nullable=True, default="SözEğitim öğrencisi")
+    full_name = Column(String, nullable=True)
+    phone_number = Column(String, nullable=True)
+    avatar_url = Column(String, nullable=True)
+    language = Column(String, nullable=True, default="tr")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+

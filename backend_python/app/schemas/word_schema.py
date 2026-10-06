@@ -16,3 +16,12 @@ class WordResponse(BaseModel):
     level: str  # YENİ EKLENDİ
     phonetic: Optional[str] = None
     meanings: List[Meaning]
+
+class WordSummary(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    
+    id: int
+    word: str
+    translation: str
+    level: str
+    phonetic: Optional[str] = None

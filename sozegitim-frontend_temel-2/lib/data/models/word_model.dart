@@ -33,7 +33,7 @@ class MeaningModel extends Meaning {
 
   factory MeaningModel.fromJson(Map<String, dynamic> json) {
     return MeaningModel(
-      partOfSpeech: json['partOfSpeech'] ?? "",
+      partOfSpeech: json['part_of_speech'] ?? json['partOfSpeech'] ?? "",
       definition: json['definition'] ?? "",
       example: json['example'],
     );

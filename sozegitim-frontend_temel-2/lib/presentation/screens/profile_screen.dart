@@ -3,18 +3,20 @@ import 'package:provider/provider.dart';
 
 // Proje yapına uygun güvenli importlar
 import '../../core/theme/app_colors.dart';
+import '../../data/models/user_model.dart';
 import '../providers/auth_provider.dart';
 import 'login_screen.dart';
-import 'settings_screen.dart'; 
 
 class ProfileScreen extends StatelessWidget {
   final VoidCallback onGoHome;
-  final VoidCallback onGoSettings; // MainScreen'den gelen bu fonksiyonu ekledik
+  final VoidCallback onGoSettings;
+  final VoidCallback onGoFriends;
 
   const ProfileScreen({
     super.key,
     required this.onGoHome,
-    required this.onGoSettings, // Zorunlu hale getirdik
+    required this.onGoSettings,
+    required this.onGoFriends,
   });
 
   @override
@@ -66,21 +68,22 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  // --- 2. GİRİŞ YAPMIŞ KULLANICI EKRANI (SENİN ORİJİNAL TASARIMIN) ---
+  // --- 2. GİRİŞ YAPMIŞ KULLANICI EKRANI ---
   Widget _buildAuthenticatedProfile(BuildContext context, AuthProvider auth) {
+    final user = auth.currentUser;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(22, 18, 22, 28),
       child: Column(
         children: [
           _header(),
           const SizedBox(height: 22),
-          _profileTop(),
+          _profileTop(user),
           const SizedBox(height: 24),
-          _levelCard(),
+          _levelCard(user),
           const SizedBox(height: 18),
           _learningProfileCard(),
           const SizedBox(height: 18),
-          _statsCard(),
+          _statsCard(user),
           const SizedBox(height: 18),
           _achievementsCard(),
           const SizedBox(height: 18),
@@ -129,7 +132,12 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _profileTop() {
+  Widget _profileTop(UserModel? user) {
+    final initial = (user != null && user.username.isNotEmpty)
+        ? user.username[0].toUpperCase()
+        : 'U';
+    final displayName = user?.username ?? 'Kullanıcı';
+
     return Column(
       children: [
         Container(
@@ -140,15 +148,15 @@ class ProfileScreen extends StatelessWidget {
             border: Border.all(color: AppColors.yellow, width: 4),
             boxShadow: [
               BoxShadow(
-                color: AppColors.yellow.withOpacity(0.25),
+                color: AppColors.yellow.withAlpha((0.25 * 255).round()),
                 blurRadius: 22,
               ),
             ],
           ),
-          child: const Center(
+          child: Center(
             child: Text(
-              'A',
-              style: TextStyle(
+              initial,
+              style: const TextStyle(
                 color: AppColors.grey,
                 fontSize: 70,
                 fontWeight: FontWeight.bold,
@@ -157,9 +165,9 @@ class ProfileScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 20),
-        const Text(
-          'Ali Irmak',
-          style: TextStyle(
+        Text(
+          displayName,
+          style: const TextStyle(
             color: AppColors.white,
             fontSize: 34,
             fontWeight: FontWeight.bold,
@@ -172,14 +180,14 @@ class ProfileScreen extends StatelessWidget {
             color: AppColors.navy,
             borderRadius: BorderRadius.circular(20),
           ),
-          child: const Row(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.workspace_premium, color: AppColors.yellow, size: 20),
-              SizedBox(width: 6),
+              const Icon(Icons.workspace_premium, color: AppColors.yellow, size: 20),
+              const SizedBox(width: 6),
               Text(
-                'Premium Üye',
-                style: TextStyle(
+                user != null ? '${user.level}. Seviye Öğrenci' : 'Misafir',
+                style: const TextStyle(
                   color: AppColors.yellow,
                   fontWeight: FontWeight.bold,
                 ),
@@ -191,7 +199,12 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _levelCard() {
+  Widget _levelCard(UserModel? user) {
+    final level = user?.level ?? 1;
+    final currentLevelXp = user?.xpInCurrentLevel ?? 0;
+    final progress = user?.levelProgress ?? 0.0;
+    final totalXp = user?.xp ?? 0;
+
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: _cardDecoration(),
@@ -205,9 +218,9 @@ class ProfileScreen extends StatelessWidget {
               shape: BoxShape.circle,
               border: Border.all(color: AppColors.yellow, width: 3),
             ),
-            child: const Text(
-              '12',
-              style: TextStyle(
+            child: Text(
+              '$level',
+              style: const TextStyle(
                 color: AppColors.white,
                 fontSize: 34,
                 fontWeight: FontWeight.bold,
@@ -219,9 +232,9 @@ class ProfileScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '12. Seviye',
-                  style: TextStyle(
+                Text(
+                  '$level. Seviye',
+                  style: const TextStyle(
                     color: AppColors.white,
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -230,17 +243,17 @@ class ProfileScreen extends StatelessWidget {
                 const SizedBox(height: 12),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: const LinearProgressIndicator(
-                    value: 2450 / 3000,
+                  child: LinearProgressIndicator(
+                    value: progress.clamp(0.0, 1.0),
                     minHeight: 10,
                     backgroundColor: AppColors.navy,
                     color: AppColors.yellow,
                   ),
                 ),
                 const SizedBox(height: 10),
-                const Text(
-                  '2450 / 3000 XP',
-                  style: TextStyle(color: AppColors.grey, fontSize: 16),
+                Text(
+                  '$currentLevelXp / 100 XP',
+                  style: const TextStyle(color: AppColors.grey, fontSize: 16),
                 ),
               ],
             ),
@@ -248,19 +261,19 @@ class ProfileScreen extends StatelessWidget {
           const SizedBox(width: 18),
           Container(width: 1, height: 80, color: AppColors.cardBorder),
           const SizedBox(width: 18),
-          const Column(
+          Column(
             children: [
-              Icon(Icons.emoji_events, color: AppColors.yellow, size: 42),
-              SizedBox(height: 6),
+              const Icon(Icons.emoji_events, color: AppColors.yellow, size: 42),
+              const SizedBox(height: 6),
               Text(
-                '2450',
-                style: TextStyle(
+                '$totalXp',
+                style: const TextStyle(
                   color: AppColors.white,
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              Text('Toplam XP', style: TextStyle(color: AppColors.grey)),
+              const Text('Toplam XP', style: TextStyle(color: AppColors.grey)),
             ],
           ),
         ],
@@ -304,7 +317,7 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _statsCard() {
+  Widget _statsCard(UserModel? user) {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: _cardDecoration(),
@@ -449,6 +462,13 @@ class ProfileScreen extends StatelessWidget {
       decoration: _cardDecoration(),
       child: Column(
         children: [
+          _menuItem(
+            Icons.people_alt_rounded,
+            AppColors.blue,
+            'Arkadaşlarım',
+            onGoFriends,
+          ),
+          const Divider(color: AppColors.cardBorder),
           _menuItem(
             Icons.settings,
             AppColors.grey,

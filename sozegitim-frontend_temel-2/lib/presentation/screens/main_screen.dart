@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/theme/app_colors.dart';
 import 'home_screen.dart';
 import 'dictionary_screen.dart';
 import 'profile_screen.dart';
@@ -6,6 +7,7 @@ import 'quiz_screen.dart';
 import 'matching_screen.dart';
 import 'settings_screen.dart';
 import 'personal_info_screen.dart';
+import 'friends_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -59,6 +61,12 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
+  void goFriends() {
+    setState(() {
+      selectedIndex = 7;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final pages = [
@@ -80,6 +88,7 @@ class _MainScreenState extends State<MainScreen> {
       ProfileScreen(
         onGoHome: goHome,
         onGoSettings: goSettings,
+        onGoFriends: goFriends,
       ),
 
       MatchingScreen(
@@ -95,10 +104,63 @@ class _MainScreenState extends State<MainScreen> {
       PersonalInfoScreen(
         onGoBack: goSettings,
       ),
+
+      FriendsScreen(
+        onGoBack: goProfile,
+      ),
     ];
 
     return Scaffold(
+      backgroundColor: AppColors.darkNavy,
       body: pages[selectedIndex],
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: AppColors.cardNavy,
+          border: Border(
+            top: BorderSide(
+              color: AppColors.cardBorder.withAlpha(120),
+              width: 1.5,
+            ),
+          ),
+        ),
+        child: BottomNavigationBar(
+          currentIndex: selectedIndex < 5 ? selectedIndex : 0,
+          onTap: (index) {
+            setState(() {
+              selectedIndex = index;
+            });
+          },
+          backgroundColor: AppColors.cardNavy,
+          selectedItemColor: AppColors.yellow,
+          unselectedItemColor: AppColors.grey,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+          unselectedLabelStyle: const TextStyle(fontSize: 12),
+          type: BottomNavigationBarType.fixed,
+          elevation: 0,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_rounded),
+              label: 'Ana Sayfa',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.menu_book_rounded),
+              label: 'Sözlük',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.quiz_rounded),
+              label: 'Quiz',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person_rounded),
+              label: 'Profil',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.sports_esports_rounded),
+              label: 'Eşleştirme',
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

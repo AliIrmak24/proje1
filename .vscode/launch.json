@@ -1,28 +1,35 @@
 {
-    // Olası öznitelikler hakkında bilgi edinmek için IntelliSense kullanın.
-    // Mevcut özniteliklerin açıklamalarını görüntülemek için üzerine gelin.
-    // Daha fazla bilgi için şu adresi ziyaret edin: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "sozegitim-frontend_temel-1",
-            "cwd": "frontend_flutter\\sozegitim-frontend_temel-1",
-            "request": "launch",
-            "type": "dart"
-        },
-        {
-            "name": "sozegitim-frontend_temel-1 (profile mode)",
-            "cwd": "frontend_flutter\\sozegitim-frontend_temel-1",
+            "name": "sozegitim-frontend (Chrome Web)",
+            "cwd": "sozegitim-frontend_temel-2",
             "request": "launch",
             "type": "dart",
-            "flutterMode": "profile"
+            "args": ["-d", "chrome"]
         },
         {
-            "name": "sozegitim-frontend_temel-1 (release mode)",
-            "cwd": "frontend_flutter\\sozegitim-frontend_temel-1",
+            "name": "sozegitim-frontend (Windows Desktop)",
+            "cwd": "sozegitim-frontend_temel-2",
             "request": "launch",
             "type": "dart",
-            "flutterMode": "release"
+            "args": ["-d", "windows"]
+        },
+        {
+            "name": "backend (FastAPI / Uvicorn)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "app.main:app",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8000",
+                "--app-dir",
+                "backend_python"
+            ],
+            "jinja": true
         }
     ]
 }

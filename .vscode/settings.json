@@ -1,0 +1,41 @@
+{
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/.venv/**": true,
+    "**/build/**": true,
+    "**/.dart_tool/**": true,
+    "**/ephemeral/**": true,
+    "**/*.db": true,
+    "**/*.db-wal": true,
+    "**/*.db-shm": true,
+    "**/*.log": true,
+    "**/__pycache__/**": true
+  },
+  "search.exclude": {
+    "**/.venv": true,
+    "**/build": true,
+    "**/.dart_tool": true,
+    "**/ephemeral": true,
+    "**/*.db": true,
+    "**/*.log": true,
+    "**/__pycache__": true
+  },
+  "files.exclude": {
+    "**/.git": true,
+    "**/.dart_tool": true,
+    "**/__pycache__": true
+  },
+  "dart.analysisExcludedFolders": [
+    "sozegitim-frontend_temel-2/build",
+    "sozegitim-frontend_temel-2/.dart_tool",
+    ".venv"
+  ],
+  "python.analysis.exclude": [
+    "**/.venv/**",
+    "**/build/**",
+    "**/.dart_tool/**"
+  ],
+  "terminal.integrated.scrollback": 5000,
+  "terminal.integrated.enableMultiLinePasteWarning": false
+}
