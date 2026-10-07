@@ -800,33 +800,37 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
         });
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        height: 140,
+        margin: const EdgeInsets.only(bottom: 14),
+        constraints: const BoxConstraints(minHeight: 110),
         decoration: BoxDecoration(
           color: AppColors.cardNavy,
           borderRadius: BorderRadius.circular(22),
           border: Border.all(color: AppColors.cardBorder),
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 5,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(22),
-                  bottomLeft: Radius.circular(22),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                width: 5,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(22),
+                    bottomLeft: Radius.circular(22),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 18),
-            _levelBadge(level, color),
-            const SizedBox(width: 18),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+              const SizedBox(width: 14),
+              Center(child: _levelBadge(level, color)),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                   Text(
                     title,
                     style: const TextStyle(
@@ -862,13 +866,15 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: AppColors.grey, size: 32),
-            const SizedBox(width: 14),
-          ],
-        ),
+          ),
+          const Icon(Icons.chevron_right, color: AppColors.grey, size: 32),
+          const SizedBox(width: 14),
+        ],
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 
   Widget _levelBadge(String level, Color color) {
     return Container(
@@ -1141,12 +1147,16 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
                           ),
                           if (word.phonetic != null && word.phonetic!.isNotEmpty) ...[
                             const SizedBox(width: 8),
-                            Text(
-                              word.phonetic!,
-                              style: const TextStyle(
-                                color: AppColors.grey,
-                                fontSize: 13,
-                                fontStyle: FontStyle.italic,
+                            Flexible(
+                              child: Text(
+                                word.phonetic!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppColors.grey,
+                                  fontSize: 12.5,
+                                  fontStyle: FontStyle.italic,
+                                ),
                               ),
                             ),
                           ],
@@ -1155,9 +1165,11 @@ class _DictionaryScreenState extends State<DictionaryScreen> {
                       const SizedBox(height: 4),
                       Text(
                         word.translation,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: AppColors.grey,
-                          fontSize: 14,
+                          fontSize: 13.5,
                         ),
                       ),
                     ],

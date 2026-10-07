@@ -332,7 +332,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
                 // Sekme İçerikleri
                 SizedBox(
-                  height: 380,
+                  height: 410,
                   child: TabBarView(
                     controller: _tabController,
                     children: [

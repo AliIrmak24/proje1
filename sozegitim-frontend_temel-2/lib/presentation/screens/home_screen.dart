@@ -165,53 +165,81 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: AppColors.darkNavy,
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 1. Logo Alanı
-              _logoArea(),
-              const SizedBox(height: 10),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isSmallScreen = constraints.maxHeight < 640;
 
-              // 2. Günün Kelimesi & Mini Quiz (Yan Yana, Kompakt)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: _wordOfDayCard()),
-                  const SizedBox(width: 10),
-                  Expanded(child: _miniQuizCard()),
-                ],
+            return SingleChildScrollView(
+              physics: isSmallScreen
+                  ? const BouncingScrollPhysics()
+                  : const NeverScrollableScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight,
+                  maxHeight: isSmallScreen ? double.infinity : constraints.maxHeight,
+                ),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: isSmallScreen ? 6 : 10,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // 1. Logo Alanı
+                      _logoArea(isSmallScreen),
+                      SizedBox(height: isSmallScreen ? 6 : 10),
+
+                      // 2. Günün Kelimesi & Mini Quiz (Yan Yana, Eşit Yükseklik)
+                      IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(child: _wordOfDayCard(isSmallScreen)),
+                            const SizedBox(width: 10),
+                            Expanded(child: _miniQuizCard(isSmallScreen)),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: isSmallScreen ? 6 : 10),
+
+                      // 3. Skor Tablosu
+                      if (isSmallScreen)
+                        SizedBox(
+                          height: 140,
+                          child: _leaderboardCard(isSmallScreen: true),
+                        )
+                      else
+                        Expanded(child: _leaderboardCard(isSmallScreen: false)),
+                      SizedBox(height: isSmallScreen ? 8 : 12),
+
+                      // 4. Alt İşlem Tuşları
+                      _bottomActions(isSmallScreen),
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(height: 10),
-
-              // 3. Skor Tablosu (Kompakt)
-              Expanded(child: _leaderboardCard()),
-              const SizedBox(height: 12),
-
-              // 4. Alt İşlem Tuşları (Profil, Başla, Sözlük)
-              _bottomActions(),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _logoArea() {
+  Widget _logoArea(bool isSmallScreen) {
     return Column(
-      children: const [
+      children: [
         Text(
           'SözEğitim',
           style: TextStyle(
             color: AppColors.yellow,
-            fontSize: 26,
+            fontSize: isSmallScreen ? 22 : 25,
             fontWeight: FontWeight.bold,
             letterSpacing: 0.8,
           ),
         ),
-        SizedBox(height: 2),
-        Text.rich(
+        const SizedBox(height: 2),
+        const Text.rich(
           TextSpan(
             children: [
               TextSpan(text: 'Learn. ', style: TextStyle(color: AppColors.blue)),
@@ -219,137 +247,152 @@ class _HomeScreenState extends State<HomeScreen> {
               TextSpan(text: 'Compete.', style: TextStyle(color: AppColors.yellow)),
             ],
           ),
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
         ),
       ],
     );
   }
 
-  Widget _wordOfDayCard() {
+  Widget _wordOfDayCard(bool isSmallScreen) {
     final word = _wordOfDay?['word'] ?? 'Knowledge';
     final phonetic = _wordOfDay?['phonetic'] ?? '/ˈnɒl.ɪdʒ/';
     final translation = _wordOfDay?['translation'] ?? 'Bilgi, ilim, birikim.';
     final level = _wordOfDay?['level']?.toString() ?? 'A2';
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
       decoration: _cardDecoration(AppColors.blue),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(Icons.menu_book_rounded, color: AppColors.blue, size: 18),
-                  SizedBox(width: 6),
-                  Text(
-                    'Günün Kelimesi',
-                    style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                  const Row(
+                    children: [
+                      Icon(Icons.menu_book_rounded, color: AppColors.blue, size: 16),
+                      SizedBox(width: 5),
+                      Text(
+                        'Günün Kelimesi',
+                        style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.blue.withAlpha(40),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.blue, width: 0.8),
+                    ),
+                    child: Text(
+                      level,
+                      style: const TextStyle(color: AppColors.blue, fontWeight: FontWeight.bold, fontSize: 10),
+                    ),
                   ),
                 ],
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: AppColors.blue.withAlpha(40),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.blue, width: 0.8),
+              SizedBox(height: isSmallScreen ? 4 : 6),
+              if (_loadingWordOfDay)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(10),
+                    child: SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(color: AppColors.blue, strokeWidth: 2),
+                    ),
+                  ),
+                )
+              else ...[
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    word,
+                    maxLines: 1,
+                    style: TextStyle(
+                      color: AppColors.white,
+                      fontSize: isSmallScreen ? 17 : 19,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
-                child: Text(
-                  level,
-                  style: const TextStyle(color: AppColors.blue, fontWeight: FontWeight.bold, fontSize: 10),
+                if (phonetic != null && phonetic.isNotEmpty)
+                  Text(
+                    phonetic,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: AppColors.grey, fontStyle: FontStyle.italic, fontSize: 10.5),
+                  ),
+                const SizedBox(height: 3),
+                Text(
+                  translation,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: AppColors.grey, fontSize: 11, height: 1.2),
                 ),
-              ),
+              ],
             ],
           ),
-          const SizedBox(height: 8),
-          if (_loadingWordOfDay)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(12),
-                child: SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(color: AppColors.blue, strokeWidth: 2),
-                ),
-              ),
-            )
-          else ...[
-            Text(
-              word,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            if (phonetic != null && phonetic.isNotEmpty)
-              Text(
-                phonetic,
-                style: const TextStyle(color: AppColors.grey, fontStyle: FontStyle.italic, fontSize: 11),
-              ),
-            const SizedBox(height: 6),
-            Text(
-              translation,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: AppColors.grey, fontSize: 12),
-            ),
-          ],
-          const SizedBox(height: 8),
+          SizedBox(height: isSmallScreen ? 6 : 8),
           _compactButton('Sözlüğe Git', Icons.arrow_forward_ios, widget.onGoDictionary),
         ],
       ),
     );
   }
 
-  Widget _miniQuizCard() {
+  Widget _miniQuizCard(bool isSmallScreen) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
       decoration: _cardDecoration(AppColors.purple),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(Icons.sports_esports, color: AppColors.purple, size: 18),
-                  SizedBox(width: 6),
-                  Text(
-                    'Mini Quiz',
-                    style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                  const Row(
+                    children: [
+                      Icon(Icons.sports_esports, color: AppColors.purple, size: 16),
+                      SizedBox(width: 5),
+                      Text(
+                        'Mini Quiz',
+                        style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  GestureDetector(
+                    onTap: _generateRandomMiniQuiz,
+                    child: const Icon(Icons.refresh_rounded, color: AppColors.yellow, size: 16),
                   ),
                 ],
               ),
-              GestureDetector(
-                onTap: _generateRandomMiniQuiz,
-                child: const Icon(Icons.refresh_rounded, color: AppColors.yellow, size: 17),
+              SizedBox(height: isSmallScreen ? 4 : 6),
+              Text(
+                '“$_miniQuizWord” anlamı?',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: AppColors.white, fontSize: 12, fontWeight: FontWeight.w600),
               ),
+              const SizedBox(height: 5),
+              ..._miniQuizOptions.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final opt = entry.value;
+                final letter = idx == 0 ? 'A' : 'B';
+                return _dynamicOption(letter, opt, idx);
+              }),
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            '“$_miniQuizWord” anlamı?',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: AppColors.white, fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 6),
-          ..._miniQuizOptions.asMap().entries.map((entry) {
-            final idx = entry.key;
-            final opt = entry.value;
-            final letter = idx == 0 ? 'A' : 'B';
-            return _dynamicOption(letter, opt, idx);
-          }),
-          const SizedBox(height: 8),
+          SizedBox(height: isSmallScreen ? 6 : 8),
           _compactButton('Tüm Testler', Icons.arrow_forward_ios, widget.onGoQuiz),
         ],
       ),
@@ -389,7 +432,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 text,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(color: AppColors.white, fontSize: 11),
+                style: const TextStyle(color: AppColors.white, fontSize: 10.5),
               ),
             ),
             if (_miniQuizSelectedIndex != null && text == _miniQuizCorrect)
@@ -402,33 +445,33 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _leaderboardCard() {
+  Widget _leaderboardCard({bool isSmallScreen = false}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: EdgeInsets.symmetric(horizontal: 14, vertical: isSmallScreen ? 6 : 10),
       decoration: _cardDecoration(AppColors.cardBorder),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.emoji_events, color: AppColors.yellow, size: 22),
+              const Icon(Icons.emoji_events, color: AppColors.yellow, size: 20),
               const SizedBox(width: 8),
               const Text(
                 'Skor Tablosu',
                 style: TextStyle(
                   color: AppColors.white,
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               const Spacer(),
               GestureDetector(
                 onTap: _fetchLeaderboard,
-                child: const Icon(Icons.refresh, color: AppColors.grey, size: 18),
+                child: const Icon(Icons.refresh, color: AppColors.grey, size: 17),
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: isSmallScreen ? 4 : 6),
           Expanded(
             child: _loadingLeaderboard
                 ? const Center(child: CircularProgressIndicator(color: AppColors.yellow, strokeWidth: 2))
@@ -436,7 +479,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? const Center(
                         child: Text(
                           'Henüz kayıtlı skor bulunmuyor.',
-                          style: TextStyle(color: AppColors.grey, fontSize: 12),
+                          style: TextStyle(color: AppColors.grey, fontSize: 11),
                         ),
                       )
                     : ListView.builder(
@@ -449,13 +492,24 @@ class _HomeScreenState extends State<HomeScreen> {
                           final xp = '${user['xp'] ?? 0} XP';
                           final isTop = rank == 1;
 
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: isTop ? AppColors.navy : Colors.transparent,
+                              borderRadius: BorderRadius.circular(10),
+                              border: isTop ? Border.all(color: AppColors.yellow.withAlpha(80), width: 1) : null,
+                            ),
                             child: Row(
                               children: [
-                                CircleAvatar(
-                                  radius: 12,
-                                  backgroundColor: isTop ? AppColors.yellow : AppColors.navy,
+                                Container(
+                                  width: 22,
+                                  height: 22,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: isTop ? AppColors.yellow : AppColors.navy,
+                                    shape: BoxShape.circle,
+                                  ),
                                   child: Text(
                                     '$rank',
                                     style: TextStyle(
@@ -465,7 +519,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(width: 10),
+                                const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
                                     username,
@@ -474,13 +528,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                     style: TextStyle(
                                       color: isTop ? AppColors.yellow : AppColors.white,
                                       fontWeight: isTop ? FontWeight.bold : FontWeight.normal,
-                                      fontSize: 13,
+                                      fontSize: 12.5,
                                     ),
                                   ),
                                 ),
+                                const SizedBox(width: 6),
                                 Text(
                                   xp,
-                                  style: const TextStyle(color: AppColors.yellow, fontSize: 12, fontWeight: FontWeight.bold),
+                                  style: const TextStyle(color: AppColors.yellow, fontSize: 11.5, fontWeight: FontWeight.bold),
                                 ),
                               ],
                             ),
@@ -493,23 +548,27 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _bottomActions() {
+  Widget _bottomActions(bool isSmallScreen) {
+    final sideSize = isSmallScreen ? 48.0 : 54.0;
+    final bigSize = isSmallScreen ? 72.0 : 80.0;
+    final bigIcon = isSmallScreen ? 24.0 : 28.0;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        _actionButton(Icons.person_outline, 'Profil', AppColors.blue, widget.onGoProfile),
-        _bigStartButton(),
-        _actionButton(Icons.menu_book_outlined, 'Sözlük', AppColors.blue, widget.onGoDictionary),
+        _actionButton(Icons.person_outline, 'Profil', AppColors.blue, widget.onGoProfile, size: sideSize),
+        _bigStartButton(size: bigSize, iconSize: bigIcon),
+        _actionButton(Icons.menu_book_outlined, 'Sözlük', AppColors.blue, widget.onGoDictionary, size: sideSize),
       ],
     );
   }
 
-  Widget _bigStartButton() {
+  Widget _bigStartButton({double size = 80, double iconSize = 28}) {
     return GestureDetector(
       onTap: widget.onGoMatching,
       child: Container(
-        width: 82,
-        height: 82,
+        width: size,
+        height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(color: AppColors.yellow, width: 2.5),
@@ -526,16 +585,16 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-        child: const Column(
+        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.sports_kabaddi, color: AppColors.darkNavy, size: 28),
-            SizedBox(height: 2),
-            Text(
+            Icon(Icons.sports_kabaddi, color: AppColors.darkNavy, size: iconSize),
+            const SizedBox(height: 2),
+            const Text(
               'BAŞLA',
               style: TextStyle(
                 color: AppColors.darkNavy,
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 0.8,
               ),
@@ -546,21 +605,21 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _actionButton(IconData icon, String label, Color color, VoidCallback onTap) {
+  Widget _actionButton(IconData icon, String label, Color color, VoidCallback onTap, {double size = 54}) {
     return GestureDetector(
       onTap: onTap,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 54,
-            height: 54,
+            width: size,
+            height: size,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(color: color.withAlpha(120), width: 1.5),
               color: AppColors.cardNavy,
             ),
-            child: Icon(icon, color: color, size: 24),
+            child: Icon(icon, color: color, size: size * 0.44),
           ),
           const SizedBox(height: 4),
           Text(label, style: const TextStyle(color: AppColors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
