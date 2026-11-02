@@ -18,5 +18,6 @@ class User(Base):
     phone_number = Column(String, nullable=True)
     avatar_url = Column(String, nullable=True)
     language = Column(String, nullable=True, default="tr")
+    cefr_level = Column(String, nullable=True)  # Seviye testi veya kullanıcı seçimi
+    token_version = Column(Integer, nullable=False, default=0, server_default="0")  # Artınca eski oturumlar geçersizleşir
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-

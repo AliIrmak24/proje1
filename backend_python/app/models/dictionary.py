@@ -7,6 +7,12 @@ class DictionaryWord(Base):
     id = Column(Integer, primary_key=True, index=True)
     word = Column(String, unique=True, index=True, nullable=False)  # İngilizce kelime
     translation = Column(String, nullable=False)  # Türkçe çevirisi
-    level = Column(String, nullable=False)  # A1, A2, B1, B2, C1, C2
+    level = Column(String, nullable=False, index=True)  # A1, A2, B1, B2, C1, C2
     phonetic = Column(String, nullable=True)
     meanings = Column(JSON, nullable=False)  # Tüm o detaylı açıklamalar ve örnekleri JSON olarak gömeceğiz
+
+class AppMeta(Base):
+    __tablename__ = "app_meta"
+
+    key = Column(String, primary_key=True)
+    value = Column(String, nullable=False)

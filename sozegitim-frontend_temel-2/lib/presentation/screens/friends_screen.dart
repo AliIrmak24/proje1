@@ -16,6 +16,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   List<dynamic> _friends = [];
+  List<dynamic> _requests = [];
   List<dynamic> _searchResults = [];
   bool _isLoading = true;
   bool _isSearching = false;
@@ -29,19 +30,33 @@ class _FriendsScreenState extends State<FriendsScreen> {
   Future<void> _fetchFriends() async {
     setState(() => _isLoading = true);
     try {
-      final res = await _apiClient.get('/api/friends/');
-      if (res is List) {
+      final friends = await _apiClient.get('/api/friends/');
+      final requests = await _apiClient.get('/api/friends/requests');
+      if (mounted && friends is List && requests is List) {
         setState(() {
-          _friends = res;
+          _friends = friends;
+          _requests = requests;
           _isLoading = false;
         });
         return;
       }
     } catch (_) {}
 
+    if (!mounted) return;
     setState(() {
       _isLoading = false;
     });
+  }
+
+  Future<void> _respondToRequest(int requestId, bool accept) async {
+    try {
+      if (accept) {
+        await _apiClient.post('/api/friends/requests/$requestId/accept', {});
+      } else {
+        await _apiClient.delete('/api/friends/requests/$requestId');
+      }
+    } catch (_) {}
+    if (mounted) _fetchFriends();
   }
 
   Future<void> _searchUsers(String query) async {
@@ -56,7 +71,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
     setState(() => _isSearching = true);
     try {
       final res = await _apiClient.get('/api/friends/search?q=${Uri.encodeComponent(query.trim())}');
-      if (res is List) {
+      if (mounted && res is List) {
         setState(() {
           _searchResults = res;
           _isSearching = false;
@@ -65,13 +80,14 @@ class _FriendsScreenState extends State<FriendsScreen> {
       }
     } catch (_) {}
 
+    if (!mounted) return;
     setState(() => _isSearching = false);
   }
 
   Future<void> _addFriend(String username) async {
     try {
       final res = await _apiClient.post('/api/friends/add', {'target_username': username});
-      final msg = res['message'] ?? '$username eklendi!';
+      final msg = res['message'] ?? '$username kullanıcısına istek gönderildi';
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -89,7 +105,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             backgroundColor: Colors.redAccent,
-            content: Text(e.toString().replaceAll('Exception: ', ''), style: const TextStyle(color: AppColors.white)),
+            content: Text(e.toString(), style: const TextStyle(color: AppColors.white)),
           ),
         );
       }
@@ -240,7 +256,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
         final username = item['username']?.toString() ?? '';
         final level = item['level'] ?? 1;
         final xp = item['xp'] ?? 0;
-        final isFriend = item['is_friend'] == true;
+        final friendStatus = item['friend_status']?.toString() ?? 'none';
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -277,7 +293,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
                   ],
                 ),
               ),
-              isFriend
+              friendStatus != 'none'
                   ? Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
@@ -285,7 +301,10 @@ class _FriendsScreenState extends State<FriendsScreen> {
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: AppColors.green),
                       ),
-                      child: const Text('Arkadaş', style: TextStyle(color: AppColors.green, fontSize: 12, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        friendStatus == 'accepted' ? 'Arkadaş' : 'Bekliyor',
+                        style: const TextStyle(color: AppColors.green, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
                     )
                   : ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
@@ -304,11 +323,53 @@ class _FriendsScreenState extends State<FriendsScreen> {
     );
   }
 
+  Widget _requestCard(dynamic request) {
+    final sender = request['sender'] as Map<String, dynamic>;
+    final requestId = request['request_id'] as int;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.cardNavy,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.yellow),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  sender['username']?.toString() ?? 'Kullanıcı',
+                  style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 4),
+                const Text('Arkadaşlık isteği gönderdi', style: TextStyle(color: AppColors.grey, fontSize: 13)),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Reddet',
+            onPressed: () => _respondToRequest(requestId, false),
+            icon: const Icon(Icons.close, color: Colors.redAccent),
+          ),
+          IconButton(
+            tooltip: 'Kabul Et',
+            onPressed: () => _respondToRequest(requestId, true),
+            icon: const Icon(Icons.check, color: Colors.greenAccent),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFriendsList() {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator(color: AppColors.yellow));
     }
-    if (_friends.isEmpty) {
+    if (_friends.isEmpty && _requests.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(28.0),
@@ -327,17 +388,6 @@ class _FriendsScreenState extends State<FriendsScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.grey, fontSize: 14),
               ),
-              const SizedBox(height: 24),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.blue,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                icon: const Icon(Icons.person_add, color: AppColors.white),
-                label: const Text('Admin’i Arkadaş Ekle', style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
-                onPressed: () => _addFriend('Admin'),
-              ),
             ],
           ),
         ),
@@ -346,9 +396,12 @@ class _FriendsScreenState extends State<FriendsScreen> {
 
     return ListView.builder(
       padding: const EdgeInsets.all(20),
-      itemCount: _friends.length,
+      itemCount: _requests.length + _friends.length,
       itemBuilder: (ctx, index) {
-        final item = _friends[index];
+        if (index < _requests.length) {
+          return _requestCard(_requests[index]);
+        }
+        final item = _friends[index - _requests.length];
         final friend = item['friend'] as Map<String, dynamic>? ?? {};
         final friendId = friend['id'] as int? ?? 0;
         final username = friend['username']?.toString() ?? 'Kullanıcı';

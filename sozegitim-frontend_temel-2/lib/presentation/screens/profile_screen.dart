@@ -2,69 +2,103 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 // Proje yapına uygun güvenli importlar
+import '../../core/network/api_client.dart';
 import '../../core/theme/app_colors.dart';
 import '../../data/models/user_model.dart';
 import '../providers/auth_provider.dart';
-import 'login_screen.dart';
+import 'quiz_screen.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
+  final bool isActive;
   final VoidCallback onGoHome;
   final VoidCallback onGoSettings;
   final VoidCallback onGoFriends;
 
   const ProfileScreen({
     super.key,
+    this.isActive = true,
     required this.onGoHome,
     required this.onGoSettings,
     required this.onGoFriends,
   });
 
   @override
-  Widget build(BuildContext context) {
-    // Kullanıcının oturum durumunu canlı izliyoruz
-    final authProvider = context.watch<AuthProvider>();
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
 
-    return Scaffold(
-      backgroundColor: AppColors.darkNavy,
-      body: SafeArea(
-        child: authProvider.isAuthenticated
-            ? _buildAuthenticatedProfile(context, authProvider)
-            : _buildLoginPrompt(context),
+class _ProfileScreenState extends State<ProfileScreen> {
+  final ApiClient _apiClient = ApiClient();
+  Map<String, dynamic>? _stats;
+
+  VoidCallback get onGoHome => widget.onGoHome;
+  VoidCallback get onGoSettings => widget.onGoSettings;
+  VoidCallback get onGoFriends => widget.onGoFriends;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchStats();
+  }
+
+  @override
+  void didUpdateWidget(ProfileScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive && !oldWidget.isActive) {
+      _fetchStats();
+    }
+  }
+
+  Future<void> _fetchStats() async {
+    try {
+      final res = await _apiClient.get('/api/learn/stats');
+      if (mounted && res is Map<String, dynamic>) {
+        setState(() => _stats = res);
+      }
+    } catch (_) {}
+  }
+
+  void _showLevelPicker(AuthProvider auth) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardNavy,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('İngilizce Seviyem', style: TextStyle(color: AppColors.yellow, fontWeight: FontWeight.bold)),
+        content: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final level in cefrLevels)
+              ChoiceChip(
+                label: Text(level),
+                selected: auth.currentUser?.cefrLevel == level,
+                onSelected: (_) {
+                  Navigator.pop(ctx);
+                  auth.updateProfile(cefrLevel: level);
+                },
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              openPlacementTest(context);
+            },
+            child: const Text('Seviye Testine Gir', style: TextStyle(color: AppColors.yellow)),
+          ),
+        ],
       ),
     );
   }
 
-  // --- 1. GİRİŞ YAPMAMIŞ KULLANICI EKRANI ---
-  Widget _buildLoginPrompt(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.lock_outline, size: 100, color: AppColors.grey),
-          const SizedBox(height: 20),
-          const Text(
-            'Profilini ve başarılarını görmek\niçin giriş yapmalısın.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.white, fontSize: 18),
-          ),
-          const SizedBox(height: 40),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.blue,
-              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            ),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-              );
-            },
-            child: const Text('Giriş Yap / Kayıt Ol',
-                style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
+  @override
+  Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
+
+    return Scaffold(
+      backgroundColor: AppColors.darkNavy,
+      body: SafeArea(child: _buildAuthenticatedProfile(context, authProvider)),
     );
   }
 
@@ -81,9 +115,9 @@ class ProfileScreen extends StatelessWidget {
           const SizedBox(height: 24),
           _levelCard(user),
           const SizedBox(height: 18),
-          _learningProfileCard(),
+          _learningProfileCard(auth),
           const SizedBox(height: 18),
-          _statsCard(user),
+          _statsCard(),
           const SizedBox(height: 18),
           _achievementsCard(),
           const SizedBox(height: 18),
@@ -281,7 +315,7 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _learningProfileCard() {
+  Widget _learningProfileCard(AuthProvider auth) {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: _cardDecoration(),
@@ -307,9 +341,15 @@ class ProfileScreen extends StatelessWidget {
             children: [
               _profileInfo(Icons.translate, AppColors.blue, 'Ana Dil', 'Türkçe'),
               _divider(),
-              _profileInfo(Icons.language, AppColors.green, 'Öğrenilen Dil', 'İngilizce'),
+              _profileInfo(
+                Icons.language,
+                AppColors.green,
+                'Seviyem',
+                auth.currentUser?.cefrLevel ?? 'Belirle',
+                onTap: () => _showLevelPicker(auth),
+              ),
               _divider(),
-              _profileInfo(Icons.track_changes, AppColors.purple, 'Günlük Hedef', '20 Kelime'),
+              _profileInfo(Icons.track_changes, AppColors.purple, 'Bugün', '${_stats?['words_today'] ?? 0} / ${_stats?['daily_goal'] ?? 10}'),
             ],
           ),
         ],
@@ -317,7 +357,7 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _statsCard(UserModel? user) {
+  Widget _statsCard() {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: _cardDecoration(),
@@ -341,13 +381,13 @@ class ProfileScreen extends StatelessWidget {
           const SizedBox(height: 20),
           Row(
             children: [
-              _statBox(Icons.menu_book, AppColors.blue, '378', 'Öğrenilen Kelime'),
+              _statBox(Icons.menu_book, AppColors.blue, '${_stats?['learned_words'] ?? 0}', 'Öğrenilen Kelime'),
               const SizedBox(width: 10),
-              _statBox(Icons.local_fire_department, AppColors.green, '15', 'Günlük Seri'),
+              _statBox(Icons.local_fire_department, AppColors.green, '${_stats?['streak_days'] ?? 0}', 'Günlük Seri'),
               const SizedBox(width: 10),
-              _statBox(Icons.workspace_premium, AppColors.purple, 'B1', 'En Güçlü Seviye'),
+              _statBox(Icons.workspace_premium, AppColors.purple, '${_stats?['strongest_level'] ?? '-'}', 'En Güçlü Seviye'),
               const SizedBox(width: 10),
-              _statBox(Icons.emoji_events, AppColors.yellow, '124', 'Toplam Quiz'),
+              _statBox(Icons.emoji_events, AppColors.yellow, '${_stats?['total_quizzes'] ?? 0}', 'Toplam Quiz'),
             ],
           ),
         ],
@@ -380,11 +420,13 @@ class ProfileScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _achievement(Icons.emoji_events, AppColors.blue, 'İlk Quiz', 'Tamamlandı'),
-              _achievement(Icons.calendar_month, AppColors.green, '7 Gün Seri', 'Tamamlandı'),
-              _achievementText('100', AppColors.purple, '100 Kelime', 'Tamamlandı'),
-              _achievement(Icons.groups, AppColors.yellow, 'Rekabet Ustası', 'Tamamlandı'),
-              _achievement(Icons.lock, AppColors.grey, 'Usta', 'Kilidi Kapalı'),
+              for (final item in (_stats?['achievements'] as List<dynamic>? ?? []))
+                _achievement(
+                  item['unlocked'] == true ? Icons.emoji_events : Icons.lock,
+                  item['unlocked'] == true ? AppColors.yellow : AppColors.grey,
+                  item['title'].toString(),
+                  item['unlocked'] == true ? 'Tamamlandı' : 'Kilitli',
+                ),
             ],
           ),
         ],
@@ -393,8 +435,10 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _activityCard() {
-    final values = [25, 75, 50, 60, 35, 55, 30];
-    final days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+    final activity = (_stats?['activity'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+    const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+    final values = activity.map((day) => (day['xp'] as num).toInt()).toList();
+    final maxValue = values.fold<int>(1, (a, b) => a > b ? a : b);
 
     return Container(
       padding: const EdgeInsets.all(22),
@@ -407,7 +451,7 @@ class ProfileScreen extends StatelessWidget {
               Icon(Icons.show_chart, color: AppColors.blue, size: 30),
               SizedBox(width: 12),
               Text(
-                'Aktivite',
+                'Son 7 Gün (XP)',
                 style: TextStyle(
                   color: AppColors.white,
                   fontSize: 21,
@@ -422,13 +466,13 @@ class ProfileScreen extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: List.generate(values.length, (index) {
-                final height = values[index] * 1.5;
+                final height = 110.0 * values[index] / maxValue;
                 return Expanded(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       Text(
-                        '${values[index]} dk',
+                        '${values[index]}',
                         style: const TextStyle(color: AppColors.white, fontSize: 13),
                       ),
                       const SizedBox(height: 8),
@@ -442,7 +486,7 @@ class ProfileScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        days[index],
+                        days[DateTime.parse(activity[index]['date'] as String).weekday - 1],
                         style: const TextStyle(color: AppColors.grey, fontSize: 13),
                       ),
                     ],
@@ -480,10 +524,7 @@ class ProfileScreen extends StatelessWidget {
             Icons.logout,
             Colors.redAccent,
             'Çıkış Yap',
-            () {
-              auth.logout();
-              onGoHome();
-            },
+            auth.logout,
           ),
         ],
       ),
@@ -516,24 +557,27 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _profileInfo(IconData icon, Color color, String label, String value) {
+  Widget _profileInfo(IconData icon, Color color, String label, String value, {VoidCallback? onTap}) {
     return Expanded(
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 36),
-          const SizedBox(height: 10),
-          Text(label, style: const TextStyle(color: AppColors.grey)),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 17,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 36),
+            const SizedBox(height: 10),
+            Text(label, style: const TextStyle(color: AppColors.grey)),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: AppColors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 17,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -579,23 +623,6 @@ class ProfileScreen extends StatelessWidget {
       child: Column(
         children: [
           Icon(icon, color: color, size: 42),
-          const SizedBox(height: 10),
-          Text(title, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-          const SizedBox(height: 5),
-          Text(subtitle, textAlign: TextAlign.center, style: TextStyle(color: color, fontSize: 11)),
-        ],
-      ),
-    );
-  }
-
-  Widget _achievementText(String text, Color color, String title, String subtitle) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            text,
-            style: TextStyle(color: color, fontSize: 34, fontWeight: FontWeight.bold),
-          ),
           const SizedBox(height: 10),
           Text(title, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 12)),
           const SizedBox(height: 5),

@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/network/api_client.dart';
+import '../../data/offline_words.dart';
 import '../providers/auth_provider.dart';
 
 class HomeScreen extends StatefulWidget {
+  final bool isActive;
   final VoidCallback onGoDictionary;
   final VoidCallback onGoQuiz;
   final VoidCallback onGoProfile;
@@ -12,6 +14,7 @@ class HomeScreen extends StatefulWidget {
 
   const HomeScreen({
     super.key,
+    this.isActive = true,
     required this.onGoDictionary,
     required this.onGoQuiz,
     required this.onGoProfile,
@@ -30,29 +33,10 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _loadingWordOfDay = true;
 
   // Rastgele Dinamik Mini Quiz
-  String _miniQuizWord = 'Ambition';
-  String _miniQuizCorrect = 'Arzu, hırs, azim';
-  List<String> _miniQuizOptions = ['Başarısızlık', 'Arzu, hırs, azim'];
+  String _miniQuizWord = '';
+  String _miniQuizCorrect = '';
+  List<String> _miniQuizOptions = [];
   int? _miniQuizSelectedIndex;
-
-  static final List<Map<String, String>> _quizQuestionBank = [
-    {'w': 'Ambition', 'c': 'Arzu, hırs, azim', 'd': 'Korku, kaygı'},
-    {'w': 'Resilient', 'c': 'Dirençli, güçlü', 'd': 'Kırılgan, zayıf'},
-    {'w': 'Curious', 'c': 'Meraklı, hevesli', 'd': 'Duyarsız, ilgisiz'},
-    {'w': 'Knowledge', 'c': 'Bilgi, birikim', 'd': 'Cahillik, yanılgı'},
-    {'w': 'Patience', 'c': 'Sabır, tahammül', 'd': 'Öfke, telaş'},
-    {'w': 'Brave', 'c': 'Cesur, yiğit', 'd': 'Korkak, çekingen'},
-    {'w': 'Inspire', 'c': 'İlham vermek', 'd': 'Umut kırmak'},
-    {'w': 'Opportunity', 'c': 'Fırsat, imkan', 'd': 'Engelleme, engel'},
-    {'w': 'Wisdom', 'c': 'Bilgelik, hikmet', 'd': 'Akılsızlık, cehalet'},
-    {'w': 'Serenity', 'c': 'Huzur, dinginlik', 'd': 'Kargaşa, telaş'},
-    {'w': 'Persevere', 'c': 'Sebat etmek', 'd': 'Vazgeçmek, pes etmek'},
-    {'w': 'Ubiquitous', 'c': 'Her yerde bulunan', 'd': 'Nadir, eşsiz'},
-    {'w': 'Ephemeral', 'c': 'Geçici, kısa ömürlü', 'd': 'Sonsuz, kalıcı'},
-    {'w': 'Paradigm', 'c': 'Örüntü, model', 'd': 'Düzensizlik, karmaşa'},
-    {'w': 'Benevolent', 'c': 'Hayırsever, iyi', 'd': 'Kötü niyetli, hain'},
-    {'w': 'Clarity', 'c': 'Açıklık, berraklık', 'd': 'Belirsizlik, sis'},
-  ];
 
   @override
   void initState() {
@@ -64,20 +48,36 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _generateRandomMiniQuiz() {
-    final shuffled = List<Map<String, String>>.from(_quizQuestionBank)..shuffle();
+  @override
+  void didUpdateWidget(HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Ana sayfaya dönüldüğünde skor tablosu güncellenir
+    if (widget.isActive && !oldWidget.isActive) {
+      _fetchLeaderboard();
+    }
+  }
+
+  Future<void> _generateRandomMiniQuiz() async {
+    final words = await OfflineWords.load();
+    if (!mounted || words.length < 2) return;
+
+    final shuffled = [...words]..shuffle();
     final item = shuffled.first;
-    final options = [item['c']!, item['d']!]..shuffle();
+    final distractor = shuffled.skip(1).firstWhere(
+          (w) => w.level == item.level && w.translation != item.translation,
+          orElse: () => shuffled[1],
+        );
+    final options = [item.translation, distractor.translation]..shuffle();
 
     setState(() {
-      _miniQuizWord = item['w']!;
-      _miniQuizCorrect = item['c']!;
+      _miniQuizWord = item.word;
+      _miniQuizCorrect = item.translation;
       _miniQuizOptions = options;
       _miniQuizSelectedIndex = null;
     });
   }
 
-  void _handleOptionSelect(int index) {
+  Future<void> _handleOptionSelect(int index) async {
     if (_miniQuizSelectedIndex != null) return;
 
     final selectedText = _miniQuizOptions[index];
@@ -87,49 +87,32 @@ class _HomeScreenState extends State<HomeScreen> {
       _miniQuizSelectedIndex = index;
     });
 
-    if (isCorrect) {
-      context.read<AuthProvider>().addXp(5);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tebrikler! Doğru cevap (+5 XP) 🎉'),
-          backgroundColor: Colors.green,
-          duration: Duration(milliseconds: 1200),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-
     // 1.8 saniye sonra otomatik yeni random soru getir
     Future.delayed(const Duration(milliseconds: 1800), () {
       if (mounted) {
         _generateRandomMiniQuiz();
       }
     });
+
+    if (isCorrect) {
+      final earnedXp = await context.read<AuthProvider>().awardActivityXp('mini_quiz', 1);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(earnedXp > 0 ? 'Tebrikler! Doğru cevap (+$earnedXp XP) 🎉' : 'Tebrikler! Doğru cevap 🎉'),
+          backgroundColor: Colors.green,
+          duration: const Duration(milliseconds: 1200),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
   }
 
   Future<void> _fetchWordOfDay() async {
     try {
-      final auth = context.read<AuthProvider>();
-      final userLevel = auth.currentUser?.level ?? 1;
-
-      // Kullanıcının seviyesine göre CEFR belirle
-      String cefr = 'A1';
-      if (userLevel <= 3) {
-        cefr = 'A1';
-      } else if (userLevel <= 6) {
-        cefr = 'A2';
-      } else if (userLevel <= 10) {
-        cefr = 'B1';
-      } else if (userLevel <= 14) {
-        cefr = 'B2';
-      } else if (userLevel <= 18) {
-        cefr = 'C1';
-      } else {
-        cefr = 'C2';
-      }
-
+      final cefr = context.read<AuthProvider>().currentUser?.cefrLevel ?? 'A1';
       final res = await _apiClient.get('/api/words/word-of-the-day?level=$cefr');
-      if (res is Map<String, dynamic>) {
+      if (mounted && res is Map<String, dynamic>) {
         setState(() {
           _wordOfDay = res;
           _loadingWordOfDay = false;
@@ -138,6 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (_) {}
 
+    if (!mounted) return;
     setState(() {
       _loadingWordOfDay = false;
     });
@@ -146,7 +130,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _fetchLeaderboard() async {
     try {
       final res = await _apiClient.get('/api/quiz/leaderboard');
-      if (res is List) {
+      if (mounted && res is List) {
         setState(() {
           _leaderboard = res;
           _loadingLeaderboard = false;
@@ -155,6 +139,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (_) {}
 
+    if (!mounted) return;
     setState(() {
       _loadingLeaderboard = false;
     });
@@ -254,10 +239,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _wordOfDayCard(bool isSmallScreen) {
-    final word = _wordOfDay?['word'] ?? 'Knowledge';
-    final phonetic = _wordOfDay?['phonetic'] ?? '/ˈnɒl.ɪdʒ/';
-    final translation = _wordOfDay?['translation'] ?? 'Bilgi, ilim, birikim.';
-    final level = _wordOfDay?['level']?.toString() ?? 'A2';
+    final word = _wordOfDay?['word'] ?? '-';
+    final phonetic = _wordOfDay?['phonetic'];
+    final translation = _wordOfDay?['translation'] ?? 'Sunucuya bağlanınca görünecek.';
+    final level = _wordOfDay?['level']?.toString() ?? '-';
 
     return Container(
       padding: EdgeInsets.all(isSmallScreen ? 10 : 12),
@@ -272,15 +257,21 @@ class _HomeScreenState extends State<HomeScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.menu_book_rounded, color: AppColors.blue, size: 16),
-                      SizedBox(width: 5),
-                      Text(
-                        'Günün Kelimesi',
-                        style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                      ),
-                    ],
+                  const Expanded(
+                    child: Row(
+                      children: [
+                        Icon(Icons.menu_book_rounded, color: AppColors.blue, size: 16),
+                        SizedBox(width: 5),
+                        Expanded(
+                          child: Text(
+                            'Günün Kelimesi',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

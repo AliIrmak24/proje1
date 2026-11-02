@@ -17,33 +17,15 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    # Test / Demo admin jetonu desteği
-    if token == "test_admin_token_999":
-        admin_user = user_repo.get_user_by_username(db, "Admin")
-        if not admin_user:
-            admin_user = User(
-                username="Admin",
-                email="admin@sozegitim.com",
-                hashed_password="demo_hashed_password",
-                xp=1250,
-                level=13,
-            )
-            db.add(admin_user)
-            db.commit()
-            db.refresh(admin_user)
-        return admin_user
-
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
-            raise credentials_exception
+        user_id = int(payload.get("sub"))
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Oturum süreniz dolmuş, lütfen tekrar giriş yapın")
-    except jwt.InvalidTokenError:
+    except (jwt.InvalidTokenError, TypeError, ValueError):
         raise credentials_exception
-        
-    user = user_repo.get_user_by_email(db, email=email) or user_repo.get_user_by_username(db, username=email)
-    if user is None:
+
+    user = user_repo.get_user_by_id(db, user_id)
+    if user is None or payload.get("ver") != user.token_version:
         raise credentials_exception
     return user

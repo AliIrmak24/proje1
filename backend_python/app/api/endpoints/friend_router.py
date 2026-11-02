@@ -24,17 +24,47 @@ def search_potential_friends(
 ):
     return friend_service.search_users_to_add(db, current_user.id, q)
 
-@router.post("/add", summary="Kullanıcı adına göre arkadaş ekle")
+@router.get("/requests", summary="Gelen arkadaşlık isteklerini listele")
+def get_friend_requests(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return friend_service.list_pending_requests(db, current_user.id)
+
+@router.post("/add", summary="Kullanıcı adına göre arkadaşlık isteği gönder")
 def add_friend(
     payload: FriendRequestCreate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     try:
-        friend_service.add_friend_by_username(db, current_user.id, payload.target_username)
-        return {"message": f"{payload.target_username} başarıyla arkadaş listenize eklendi!"}
+        status = friend_service.add_friend_by_username(db, current_user.id, payload.target_username)
+        if status == "accepted":
+            return {"status": status, "message": f"{payload.target_username} artık arkadaşınız!"}
+        return {"status": status, "message": f"{payload.target_username} kullanıcısına istek gönderildi"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+@router.post("/requests/{request_id}/accept", summary="Arkadaşlık isteğini kabul et")
+def accept_friend_request(
+    request_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        friend_service.respond_to_request(db, current_user.id, request_id, accept=True)
+        return {"message": "Arkadaşlık isteği kabul edildi"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.delete("/requests/{request_id}", summary="Arkadaşlık isteğini reddet")
+def reject_friend_request(
+    request_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        friend_service.respond_to_request(db, current_user.id, request_id, accept=False)
+        return {"message": "Arkadaşlık isteği reddedildi"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 @router.delete("/{target_user_id}", summary="Arkadaşı listeden çıkar")
 def remove_friend(

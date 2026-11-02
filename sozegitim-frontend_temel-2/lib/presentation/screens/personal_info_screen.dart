@@ -68,12 +68,11 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
       bio: _bioController.text.trim(),
     );
 
-    setState(() => _isSaving = false);
-
     if (mounted) {
+      setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(success ? 'Profil basariyla guncellendi!' : (auth.error ?? 'Bir hata olustu')),
+          content: Text(success ? 'Profil başarıyla güncellendi!' : (auth.error ?? 'Bir hata oluştu')),
           backgroundColor: success ? Colors.green : Colors.redAccent,
           behavior: SnackBarBehavior.floating,
         ),
@@ -84,19 +83,19 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
   Future<void> _changePassword() async {
     if (_oldPasswordController.text.isEmpty || _newPasswordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lutfen tum sifre alanlarini doldurun'), backgroundColor: Colors.orange),
+        const SnackBar(content: Text('Lütfen tüm şifre alanlarını doldurun'), backgroundColor: Colors.orange),
       );
       return;
     }
     if (_newPasswordController.text != _confirmPasswordController.text) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Yeni sifreler eslesmiyor'), backgroundColor: Colors.redAccent),
+        const SnackBar(content: Text('Yeni şifreler eşleşmiyor'), backgroundColor: Colors.redAccent),
       );
       return;
     }
-    if (_newPasswordController.text.length < 4) {
+    if (_newPasswordController.text.length < 8) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Yeni sifre en az 4 karakter olmali'), backgroundColor: Colors.orange),
+        const SnackBar(content: Text('Yeni şifre en az 8 karakter olmalı'), backgroundColor: Colors.orange),
       );
       return;
     }
@@ -107,9 +106,9 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
       _oldPasswordController.text,
       _newPasswordController.text,
     );
-    setState(() => _isSaving = false);
 
     if (mounted) {
+      setState(() => _isSaving = false);
       if (success) {
         _oldPasswordController.clear();
         _newPasswordController.clear();
@@ -118,7 +117,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
       }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(success ? 'Sifre basariyla degistirildi!' : (auth.error ?? 'Sifre degistirilemedi')),
+          content: Text(success ? 'Şifre başarıyla değiştirildi!' : (auth.error ?? 'Şifre değiştirilemedi')),
           backgroundColor: success ? Colors.green : Colors.redAccent,
           behavior: SnackBarBehavior.floating,
         ),
@@ -145,13 +144,13 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                 const SizedBox(height: 30),
                 _profilePhotoCard(user),
                 const SizedBox(height: 28),
-                _sectionTitle('Kisisel Bilgiler'),
+                _sectionTitle('Kişisel Bilgiler'),
                 _editableCard([
-                  _editableField(Icons.person_outline, 'Ad Soyad', _fullNameController, 'Adinizi girin'),
-                  _editableField(Icons.account_circle_outlined, 'Kullanici Adi', _usernameController, 'Kullanici adinizi girin'),
+                  _editableField(Icons.person_outline, 'Ad Soyad', _fullNameController, 'Adınızı girin'),
+                  _editableField(Icons.account_circle_outlined, 'Kullanıcı Adı', _usernameController, 'Kullanıcı adınızı girin'),
                   _editableField(Icons.email_outlined, 'E-posta', _emailController, 'E-posta adresinizi girin', keyboardType: TextInputType.emailAddress),
-                  _editableField(Icons.phone_outlined, 'Telefon', _phoneController, 'Telefon numaranizi girin', keyboardType: TextInputType.phone),
-                  _editableField(Icons.info_outline, 'Hakkimda', _bioController, 'Kendinizi tanitmlayin', maxLines: 3),
+                  _editableField(Icons.phone_outlined, 'Telefon', _phoneController, 'Telefon numaranızı girin', keyboardType: TextInputType.phone),
+                  _editableField(Icons.info_outline, 'Hakkımda', _bioController, 'Kendinizi tanıtın', maxLines: 3),
                 ]),
                 const SizedBox(height: 20),
                 _saveButton(),
@@ -159,18 +158,18 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                 _sectionTitle('Hesap Bilgileri'),
                 _infoGroup([
                   _infoItem(Icons.workspace_premium, 'Seviye ve Puan', user != null ? '${user.level}. Seviye (${user.xp} XP)' : '-'),
-                  _infoItem(Icons.calendar_month, 'Kayit Tarihi', user?.createdAt != null ? '${user!.createdAt!.day}.${user.createdAt!.month}.${user.createdAt!.year}' : 'Yeni Uye'),
-                  _infoItem(Icons.language, 'Uygulama Dili', 'Turkce'),
+                  _infoItem(Icons.calendar_month, 'Kayıt Tarihi', user?.createdAt != null ? '${user!.createdAt!.day}.${user.createdAt!.month}.${user.createdAt!.year}' : 'Yeni Üye'),
+                  _infoItem(Icons.language, 'Uygulama Dili', 'Türkçe'),
                 ]),
                 const SizedBox(height: 28),
-                _sectionTitle('Sifre Yonetimi'),
+                _sectionTitle('Şifre Yönetimi'),
                 _passwordSection(),
                 const SizedBox(height: 30),
                 _logoutButton(context, auth),
                 const SizedBox(height: 14),
                 const Center(
                   child: Text(
-                    'Hesabindan cikis yaparak guvenligini artirabilirsin.',
+                    'Hesabından çıkış yaparak güvenliğini artırabilirsin.',
                     style: TextStyle(color: AppColors.grey),
                     textAlign: TextAlign.center,
                   ),
@@ -191,7 +190,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
           child: Column(
             children: [
               Text(
-                'Kisisel Bilgiler',
+                'Kişisel Bilgiler',
                 style: TextStyle(
                   color: AppColors.yellow,
                   fontSize: 32,
@@ -200,38 +199,13 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
               ),
               SizedBox(height: 8),
               Text(
-                'Hesap bilgilerini goruntule ve guncelle',
+                'Hesap bilgilerini görüntüle ve güncelle',
                 style: TextStyle(color: AppColors.grey, fontSize: 16),
               ),
             ],
           ),
         ),
-        _squareButton(Icons.verified_user_outlined, () {
-          showDialog(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              backgroundColor: AppColors.cardNavy,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              title: const Row(
-                children: [
-                  Icon(Icons.verified, color: AppColors.yellow),
-                  SizedBox(width: 10),
-                  Text('Hesap Doğrulandı', style: TextStyle(color: AppColors.white, fontSize: 18)),
-                ],
-              ),
-              content: const Text(
-                'SözEğitim hesabınız aktif ve e-posta adresiniz doğrulanmıştır.',
-                style: TextStyle(color: AppColors.grey),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Tamam', style: TextStyle(color: AppColors.yellow)),
-                ),
-              ],
-            ),
-          );
-        }),
+        const SizedBox(width: 58),
       ],
     );
   }
@@ -256,7 +230,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
     final initial = (user != null && user.username.isNotEmpty)
         ? user.username[0].toUpperCase()
         : 'U';
-    final displayName = user?.fullName ?? user?.username ?? 'Kullanici';
+    final displayName = user?.fullName ?? user?.username ?? 'Kullanıcı';
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -265,7 +239,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Profil Fotografi',
+            'Profil',
             style: TextStyle(
               color: AppColors.white,
               fontSize: 22,
@@ -291,78 +265,6 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                           color: AppColors.grey,
                           fontSize: 58,
                           fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    right: 0,
-                    bottom: 0,
-                    child: GestureDetector(
-                      onTap: () {
-                        showDialog(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            backgroundColor: AppColors.cardNavy,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                            title: const Text('Profil Avatarları', style: TextStyle(color: AppColors.white)),
-                            content: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text(
-                                  'Profil simgenizi seçin:',
-                                  style: TextStyle(color: AppColors.grey),
-                                ),
-                                const SizedBox(height: 16),
-                                Wrap(
-                                  spacing: 12,
-                                  runSpacing: 12,
-                                  children: ['🎓', '🚀', '🌟', '🎯', '🦁', '🦉', '💡', '🔥'].map((emoji) {
-                                    return InkWell(
-                                      onTap: () {
-                                        Navigator.pop(ctx);
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text('Avatarınız $emoji olarak güncellendi!'),
-                                            backgroundColor: Colors.green,
-                                          ),
-                                        );
-                                      },
-                                      borderRadius: BorderRadius.circular(24),
-                                      child: Container(
-                                        padding: const EdgeInsets.all(12),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.navy,
-                                          shape: BoxShape.circle,
-                                          border: Border.all(color: AppColors.yellow.withAlpha(100)),
-                                        ),
-                                        child: Text(emoji, style: const TextStyle(fontSize: 24)),
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
-                              ],
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx),
-                                child: const Text('Kapat', style: TextStyle(color: AppColors.yellow)),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                      child: Container(
-                        width: 38,
-                        height: 38,
-                        decoration: const BoxDecoration(
-                          color: AppColors.yellow,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.camera_alt_outlined,
-                          color: AppColors.darkNavy,
-                          size: 22,
                         ),
                       ),
                     ),
@@ -510,7 +412,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
               const Icon(Icons.save_outlined, color: AppColors.darkNavy),
             const SizedBox(width: 12),
             Text(
-              _isSaving ? 'Kaydediliyor...' : 'Degisiklikleri Kaydet',
+              _isSaving ? 'Kaydediliyor...' : 'Değişiklikleri Kaydet',
               style: const TextStyle(
                 color: AppColors.darkNavy,
                 fontSize: 20,
@@ -547,7 +449,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                   const SizedBox(width: 14),
                   const Expanded(
                     child: Text(
-                      'Sifre Degistir',
+                      'Şifre Değiştir',
                       style: TextStyle(color: AppColors.white, fontSize: 19, fontWeight: FontWeight.bold),
                     ),
                   ),
@@ -561,9 +463,9 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
             ),
           ),
           if (_showPasswordSection) ...[
-            _passwordField('Mevcut Sifre', _oldPasswordController),
-            _passwordField('Yeni Sifre', _newPasswordController),
-            _passwordField('Yeni Sifre (Tekrar)', _confirmPasswordController),
+            _passwordField('Mevcut Şifre', _oldPasswordController),
+            _passwordField('Yeni Şifre', _newPasswordController),
+            _passwordField('Yeni Şifre (Tekrar)', _confirmPasswordController),
             Padding(
               padding: const EdgeInsets.all(16),
               child: GestureDetector(
@@ -578,7 +480,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                   ),
                   child: const Center(
                     child: Text(
-                      'Sifreyi Guncelle',
+                      'Şifreyi Güncelle',
                       style: TextStyle(color: AppColors.yellow, fontSize: 17, fontWeight: FontWeight.bold),
                     ),
                   ),
@@ -710,7 +612,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
             Icon(Icons.logout, color: Colors.redAccent),
             SizedBox(width: 12),
             Text(
-              'Hesaptan Cikis Yap',
+              'Hesaptan Çıkış Yap',
               style: TextStyle(
                 color: Colors.redAccent,
                 fontSize: 20,

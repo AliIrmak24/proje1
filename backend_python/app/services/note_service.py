@@ -6,7 +6,7 @@ note_repo = NoteRepository()
 
 class NoteService:
     def add_note(self, db: Session, note_data: NoteCreate, user_id: int):
-        return note_repo.create_note(db, note_data, user_id)
+        return note_repo.save_note(db, note_data, user_id)
 
     def get_notes(self, db: Session, user_id: int):
         return note_repo.get_user_notes(db, user_id)

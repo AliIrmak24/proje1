@@ -6,6 +6,15 @@ from sqlalchemy import or_, and_
 from app.models.friendship import Friendship
 from app.models.user import User
 
+def _user_summary(user: User) -> dict:
+    return {
+        "id": user.id,
+        "username": user.username,
+        "level": user.level,
+        "xp": user.xp,
+        "bio": user.bio,
+    }
+
 class FriendRepository:
     def get_friendship(self, db: Session, user_id: int, friend_id: int):
         return db.query(Friendship).filter(
@@ -28,13 +37,7 @@ class FriendRepository:
             if target_user:
                 results.append({
                     "friendship_id": f.id,
-                    "friend": {
-                        "id": target_user.id,
-                        "username": target_user.username,
-                        "level": target_user.level,
-                        "xp": target_user.xp,
-                        "bio": target_user.bio,
-                    },
+                    "friend": _user_summary(target_user),
                     "status": f.status,
                     "created_at": f.created_at
                 })
@@ -53,18 +56,12 @@ class FriendRepository:
             if sender:
                 results.append({
                     "request_id": r.id,
-                    "sender": {
-                        "id": sender.id,
-                        "username": sender.username,
-                        "level": sender.level,
-                        "xp": sender.xp,
-                        "bio": sender.bio,
-                    },
+                    "sender": _user_summary(sender),
                     "created_at": r.created_at
                 })
         return results
 
-    def send_friend_request(self, db: Session, user_id: int, target_user_id: int):
+    def send_friend_request(self, db: Session, user_id: int, target_user_id: int) -> str:
         if user_id == target_user_id:
             raise ValueError("Kendinize arkadaşlık isteği gönderemezsiniz")
 
@@ -72,18 +69,31 @@ class FriendRepository:
         if existing:
             if existing.status == "accepted":
                 raise ValueError("Bu kullanıcı zaten arkadaşınız")
-            elif existing.status == "pending":
+            if existing.user_id == user_id:
                 raise ValueError("Zaten bekleyen bir arkadaşlık isteği bulunuyor")
+            # Karşı taraf daha önce istek göndermişse iki taraf da onaylamış olur
+            existing.status = "accepted"
+            db.commit()
+            return "accepted"
 
-        friendship = Friendship(
-            user_id=user_id,
-            friend_id=target_user_id,
-            status="accepted"  # Hızlı ve keyifli bir sosyal deneyim için doğrudan arkadaş yapabilir veya isteğe bağlı pending
-        )
-        db.add(friendship)
+        db.add(Friendship(user_id=user_id, friend_id=target_user_id, status="pending"))
         db.commit()
-        db.refresh(friendship)
-        return friendship
+        return "pending"
+
+    def respond_to_request(self, db: Session, user_id: int, request_id: int, accept: bool):
+        request = db.query(Friendship).filter(
+            Friendship.id == request_id,
+            Friendship.friend_id == user_id,
+            Friendship.status == "pending"
+        ).first()
+        if not request:
+            raise ValueError("Arkadaşlık isteği bulunamadı")
+
+        if accept:
+            request.status = "accepted"
+        else:
+            db.delete(request)
+        db.commit()
 
     def remove_friend(self, db: Session, user_id: int, target_user_id: int):
         friendship = self.get_friendship(db, user_id, target_user_id)

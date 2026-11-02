@@ -1,15 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/speech/speaker.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/network/api_client.dart';
+import '../../data/offline_words.dart';
 import '../providers/auth_provider.dart';
+
+const List<String> cefrLevels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+
+/// Seviye belirleme testini tam ekran açar.
+void openPlacementTest(BuildContext context) {
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (routeContext) => QuizScreen(
+        placement: true,
+        onGoHome: () => Navigator.of(routeContext).pop(),
+      ),
+    ),
+  );
+}
 
 class QuizScreen extends StatefulWidget {
   final VoidCallback onGoHome;
+  final bool placement;
 
   const QuizScreen({
     super.key,
     required this.onGoHome,
+    this.placement = false,
   });
 
   @override
@@ -18,28 +36,31 @@ class QuizScreen extends StatefulWidget {
 
 class QuizQuestion {
   final int id;
+  final String kind;
   final String question;
-  final String word;
+  final String? speakText;
   final List<String> options;
-  final int correctIndex;
+  // Sunucu sorularında cevap verilene kadar bilinmez
+  int? correctIndex;
   final String level;
 
   QuizQuestion({
     required this.id,
+    this.kind = 'en_tr',
     required this.question,
-    required this.word,
+    this.speakText,
     required this.options,
-    required this.correctIndex,
+    this.correctIndex,
     this.level = 'A1',
   });
 
   factory QuizQuestion.fromJson(Map<String, dynamic> json) {
     return QuizQuestion(
       id: json['id'] as int? ?? 0,
+      kind: json['kind'] as String? ?? 'en_tr',
       question: json['question'] as String? ?? '',
-      word: json['word'] as String? ?? '',
+      speakText: json['speak_text'] as String?,
       options: (json['options'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
-      correctIndex: json['correct_index'] as int? ?? 0,
       level: json['level'] as String? ?? 'A1',
     );
   }
@@ -51,67 +72,41 @@ class _QuizScreenState extends State<QuizScreen> {
   int currentIndex = 0;
   int? selectedIndex;
   int correctCount = 0;
+  String? sessionId; // null ise çevrimdışı sorular kullanılıyor
+  bool isCheckingAnswer = false;
   bool quizFinished = false;
   bool isSubmitting = false;
   int earnedXp = 0;
-  int totalXp = 0;
-  int currentLevel = 1;
   String? submitMessage;
+  String? selectedLevel; // null ise kullanıcının kendi seviyesi
+  String? placementLevel;
+  List<Map<String, dynamic>> reviewWords = [];
 
   List<QuizQuestion> questions = [];
 
-  // Çevrimdışı zengin kelime havuzundan dinamik soru listesi
-  static final List<Map<String, dynamic>> _wordBank = [
-    {'w': 'Ambition', 't': 'Arzu, hırs, azim', 'l': 'B2'},
-    {'w': 'Goal', 't': 'Hedef, amaç', 'l': 'A2'},
-    {'w': 'Resilient', 't': 'Dirençli, çabuk toparlanan', 'l': 'B2'},
-    {'w': 'Discovery', 't': 'Keşif, buluş', 'l': 'B1'},
-    {'w': 'Curious', 't': 'Meraklı, ilgili', 'l': 'A2'},
-    {'w': 'Apple', 't': 'Elma', 'l': 'A1'},
-    {'w': 'Book', 't': 'Kitap', 'l': 'A1'},
-    {'w': 'Friend', 't': 'Arkadaş, dost', 'l': 'A1'},
-    {'w': 'Brave', 't': 'Cesur, korkusuz', 'l': 'A1'},
-    {'w': 'Knowledge', 't': 'Bilgi, birikim', 'l': 'A2'},
-    {'w': 'Healthy', 't': 'Sağlıklı, sıhhatli', 'l': 'A2'},
-    {'w': 'Challenge', 't': 'Meydan okuma, zorluk', 'l': 'B1'},
-    {'w': 'Inspire', 't': 'İlham vermek, esinlendirmek', 'l': 'B1'},
-    {'w': 'Opportunity', 't': 'Fırsat, imkan', 'l': 'B1'},
-    {'w': 'Wisdom', 't': 'Bilgelik, akıl', 'l': 'B2'},
-    {'w': 'Empathy', 't': 'Eşduyum, empati', 'l': 'B2'},
-    {'w': 'Persevere', 't': 'Sebat etmek, azmetmek', 'l': 'C1'},
-    {'w': 'Eloquent', 't': 'Güzel konuşan, etkileyici', 'l': 'C1'},
-    {'w': 'Meticulous', 't': 'Titiz, kılı kırk yaran', 'l': 'C1'},
-    {'w': 'Ubiquitous', 't': 'Her yerde bulunan, yaygın', 'l': 'C2'},
-    {'w': 'Ephemeral', 't': 'Geçici, kısa ömürlü', 'l': 'C2'},
-    {'w': 'Paradigm', 't': 'Örüntü, model, paradigma', 'l': 'C2'},
-  ];
-
-  List<QuizQuestion> _generateOfflineQuestions() {
-    final shuffled = List<Map<String, dynamic>>.from(_wordBank)..shuffle();
-    final selectedWords = shuffled.take(5).toList();
+  // Uygulamayla gelen kelime havuzundan çevrimdışı sorular üretir
+  Future<List<QuizQuestion>> _generateOfflineQuestions() async {
+    final words = await OfflineWords.load();
+    final shuffled = [...words]..shuffle();
     final List<QuizQuestion> generated = [];
 
-    for (int i = 0; i < selectedWords.length; i++) {
-      final current = selectedWords[i];
-      final correctTranslation = current['t'] as String;
-      
-      // Diğer kelimelerden 3 çeldirici seç
-      final distractors = _wordBank
-          .where((w) => w['t'] != correctTranslation)
-          .map((w) => w['t'] as String)
+    for (final current in shuffled.take(5)) {
+      final distractors = words
+          .where((w) => w.translation != current.translation)
+          .map((w) => w.translation)
+          .toSet()
           .toList()
         ..shuffle();
-      final options = distractors.take(3).toList();
-      options.add(correctTranslation);
-      options.shuffle();
+      final options = distractors.take(3).toList()
+        ..add(current.translation)
+        ..shuffle();
 
       generated.add(QuizQuestion(
-        id: i + 1,
-        question: '“${current['w']}” kelimesinin Türkçe karşılığı hangisidir?',
-        word: current['w'] as String,
+        id: generated.length + 1,
+        question: '“${current.word}” kelimesinin Türkçe karşılığı hangisidir?',
         options: options,
-        correctIndex: options.indexOf(correctTranslation),
-        level: current['l'] as String,
+        correctIndex: options.indexOf(current.translation),
+        level: current.level,
       ));
     }
     return generated;
@@ -133,40 +128,89 @@ class _QuizScreenState extends State<QuizScreen> {
       correctCount = 0;
       earnedXp = 0;
       submitMessage = null;
+      sessionId = null;
+      placementLevel = null;
+      reviewWords = [];
     });
 
     try {
-      final response = await _apiClient.get('/api/quiz/questions?count=5');
-      if (mounted && response is List && response.isNotEmpty) {
+      final levelQuery = selectedLevel == null ? '' : '&level=$selectedLevel';
+      final path = widget.placement ? '/api/quiz/placement' : '/api/quiz/questions?count=5$levelQuery';
+      final response = await _apiClient.get(path);
+      final serverQuestions = response['questions'] as List<dynamic>;
+      if (mounted && serverQuestions.isNotEmpty) {
         setState(() {
-          questions = response
+          sessionId = response['session_id'] as String;
+          questions = serverQuestions
               .map((q) => QuizQuestion.fromJson(q as Map<String, dynamic>))
               .toList();
           isLoading = false;
         });
+        _speakCurrentQuestion();
         return;
       }
     } catch (_) {
       // Hata durumunda dinamik çevrimdışı soruları üret
     }
 
+    final offlineQuestions = await _generateOfflineQuestions();
     if (mounted) {
       setState(() {
-        questions = _generateOfflineQuestions();
+        questions = offlineQuestions;
         isLoading = false;
       });
     }
   }
 
-  void selectAnswer(int index) {
-    if (selectedIndex != null) return;
+  void _speakCurrentQuestion() {
+    final text = questions[currentIndex].speakText;
+    if (text != null) {
+      Speaker.speak(text);
+    }
+  }
 
-    setState(() {
-      selectedIndex = index;
-      if (index == questions[currentIndex].correctIndex) {
-        correctCount++;
+  Future<void> selectAnswer(int index) async {
+    if (selectedIndex != null || isCheckingAnswer) return;
+
+    final question = questions[currentIndex];
+    if (sessionId == null) {
+      setState(() {
+        selectedIndex = index;
+        if (index == question.correctIndex) {
+          correctCount++;
+        }
+      });
+      return;
+    }
+
+    setState(() => isCheckingAnswer = true);
+    try {
+      final res = await _apiClient.post('/api/quiz/answer', {
+        'session_id': sessionId,
+        'question_id': question.id,
+        'selected_index': index,
+      });
+      if (mounted) {
+        setState(() {
+          question.correctIndex = (res['correct_index'] as num).toInt();
+          selectedIndex = index;
+          if (res['correct'] == true) {
+            correctCount++;
+          }
+          isCheckingAnswer = false;
+        });
       }
-    });
+    } catch (_) {
+      if (mounted) {
+        setState(() => isCheckingAnswer = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cevap kontrol edilemedi, lütfen tekrar deneyin.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> nextQuestion() async {
@@ -185,17 +229,17 @@ class _QuizScreenState extends State<QuizScreen> {
           currentIndex++;
           selectedIndex = null;
         });
+        _speakCurrentQuestion();
       }
     }
   }
 
   Future<void> submitResults() async {
     final auth = context.read<AuthProvider>();
-    if (!auth.isAuthenticated) {
+    if (sessionId == null) {
       if (mounted) {
         setState(() {
-          earnedXp = correctCount * 10;
-          submitMessage = 'Misafir Modu: Puanlarını liderlik tablosuna kaydetmek için giriş yapmalısın!';
+          submitMessage = 'Çevrimdışı quizlerde XP kazanılmaz.';
         });
       }
       return;
@@ -209,29 +253,28 @@ class _QuizScreenState extends State<QuizScreen> {
 
     try {
       final res = await _apiClient.post('/api/quiz/submit', {
-        'correct_answers': correctCount,
+        'session_id': sessionId,
       });
 
       if (mounted) {
         setState(() {
-          earnedXp = (res['earned_xp'] as num?)?.toInt() ?? (correctCount * 10);
-          totalXp = (res['total_xp'] as num?)?.toInt() ?? 0;
-          currentLevel = (res['current_level'] as num?)?.toInt() ?? 1;
-          submitMessage = 'Tebrikler! Puanların hesabına kaydedildi.';
+          earnedXp = (res['earned_xp'] as num?)?.toInt() ?? 0;
+          placementLevel = res['placement_level'] as String?;
+          reviewWords = (res['review'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+          submitMessage = widget.placement
+              ? 'Seviyen kaydedildi, kelimeler buna göre seçilecek.'
+              : 'Tebrikler! Puanların hesabına kaydedildi.';
         });
       }
 
-      // Profil bilgilerini anında yerelde güncelle
-      await auth.addXp(earnedXp);
+      // Profil bilgilerini sunucudan güncelle
+      await auth.fetchUserProfile();
     } catch (e) {
       if (mounted) {
         setState(() {
-          earnedXp = correctCount * 10;
-          submitMessage = 'Tebrikler! Puanın kaydedildi (+${correctCount * 10} XP).';
+          submitMessage = 'Sonucun kaydedilemedi, bağlantını kontrol et.';
         });
       }
-      // Çevrimdışı modda yerel XP'yi artır
-      await auth.addXp(correctCount * 10);
     } finally {
       if (mounted) {
         setState(() {
@@ -280,7 +323,11 @@ class _QuizScreenState extends State<QuizScreen> {
           child: Column(
             children: [
               _header(),
-              const SizedBox(height: 24),
+              if (!widget.placement) ...[
+                const SizedBox(height: 16),
+                _levelSelector(),
+              ],
+              const SizedBox(height: 18),
               LinearProgressIndicator(
                 value: questions.isEmpty ? 0 : (currentIndex + 1) / questions.length,
                 backgroundColor: AppColors.navy,
@@ -290,7 +337,7 @@ class _QuizScreenState extends State<QuizScreen> {
               ),
               const SizedBox(height: 12),
               Text(
-                'Soru ${currentIndex + 1} / ${questions.length}',
+                'Soru ${currentIndex + 1} / ${questions.length} • ${question.level}',
                 style: const TextStyle(
                   color: AppColors.grey,
                   fontSize: 16,
@@ -316,6 +363,15 @@ class _QuizScreenState extends State<QuizScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+                    if (question.speakText != null) ...[
+                      const SizedBox(height: 14),
+                      IconButton.filled(
+                        style: IconButton.styleFrom(backgroundColor: AppColors.yellow),
+                        tooltip: 'Tekrar dinle',
+                        onPressed: _speakCurrentQuestion,
+                        icon: const Icon(Icons.volume_up_rounded, color: AppColors.darkNavy, size: 32),
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     ...List.generate(
                       question.options.length,
@@ -354,6 +410,47 @@ class _QuizScreenState extends State<QuizScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _levelSelector() {
+    final options = <String?>[null, ...cefrLevels];
+
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: options.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 6),
+        itemBuilder: (context, index) {
+          final level = options[index];
+          final isSelected = selectedLevel == level;
+          return GestureDetector(
+            onTap: () {
+              if (isSelected) return;
+              setState(() => selectedLevel = level);
+              loadQuestions();
+            },
+            child: Container(
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: isSelected ? AppColors.yellow : AppColors.cardNavy,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: isSelected ? AppColors.yellow : AppColors.cardBorder),
+              ),
+              child: Text(
+                level ?? 'Seviyem',
+                style: TextStyle(
+                  color: isSelected ? AppColors.darkNavy : AppColors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -445,11 +542,11 @@ class _QuizScreenState extends State<QuizScreen> {
             ),
           ),
         ),
-        const Expanded(
+        Expanded(
           child: Center(
             child: Text(
-              'Mini Quiz',
-              style: TextStyle(
+              widget.placement ? 'Seviye Testi' : 'Quiz',
+              style: const TextStyle(
                 color: AppColors.yellow,
                 fontSize: 30,
                 fontWeight: FontWeight.bold,
@@ -490,9 +587,9 @@ class _QuizScreenState extends State<QuizScreen> {
                       size: 76,
                     ),
                     const SizedBox(height: 20),
-                    const Text(
-                      'Quiz Tamamlandı!',
-                      style: TextStyle(
+                    Text(
+                      widget.placement ? 'Test Tamamlandı!' : 'Quiz Tamamlandı!',
+                      style: const TextStyle(
                         color: AppColors.white,
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
@@ -512,7 +609,9 @@ class _QuizScreenState extends State<QuizScreen> {
                           const Icon(Icons.bolt, color: AppColors.yellow, size: 28),
                           const SizedBox(width: 8),
                           Text(
-                            '+$earnedXp XP',
+                            widget.placement
+                                ? 'Seviyen: ${placementLevel ?? '-'}'
+                                : '+$earnedXp XP',
                             style: const TextStyle(
                               color: AppColors.yellow,
                               fontSize: 24,
@@ -550,14 +649,20 @@ class _QuizScreenState extends State<QuizScreen> {
                         ),
                       ),
                     ],
+                    if (reviewWords.isNotEmpty && !widget.placement) ...[
+                      const SizedBox(height: 22),
+                      _reviewList(),
+                    ],
                     const SizedBox(height: 24),
-                    _resultButton(
-                      text: 'Tekrar Çöz',
-                      color: AppColors.yellow,
-                      textColor: AppColors.darkNavy,
-                      onTap: restartQuiz,
-                    ),
-                    const SizedBox(height: 14),
+                    if (!widget.placement) ...[
+                      _resultButton(
+                        text: 'Tekrar Çöz',
+                        color: AppColors.yellow,
+                        textColor: AppColors.darkNavy,
+                        onTap: restartQuiz,
+                      ),
+                      const SizedBox(height: 14),
+                    ],
                     _resultButton(
                       text: 'Ana Sayfaya Dön',
                       color: AppColors.navy,
@@ -570,6 +675,35 @@ class _QuizScreenState extends State<QuizScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _reviewList() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.navy,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.orangeAccent.withAlpha(120)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Tekrar Etmen Gereken Kelimeler',
+            style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold, fontSize: 15),
+          ),
+          const SizedBox(height: 10),
+          ...reviewWords.map((word) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  '• ${word['word']}: ${word['translation']}',
+                  style: const TextStyle(color: AppColors.white, fontSize: 14),
+                ),
+              )),
+        ],
       ),
     );
   }

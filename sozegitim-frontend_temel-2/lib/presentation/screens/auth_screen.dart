@@ -46,7 +46,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
   Future<void> _handleLogin() async {
     final username = _loginUsernameController.text.trim();
-    final password = _loginPasswordController.text.trim();
+    final password = _loginPasswordController.text;
 
     if (username.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -61,10 +61,11 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     setState(() => _isSubmitting = true);
     final auth = context.read<AuthProvider>();
     final success = await auth.login(username, password);
+    if (!mounted) return;
     setState(() => _isSubmitting = false);
 
-    if (!success && mounted) {
-      if (auth.error != null && (auth.error!.contains('Connection error') || auth.error!.contains('Sunucuya bağlanılamadı'))) {
+    if (!success) {
+      if (auth.error != null && auth.error!.contains('Sunucuya bağlanılamadı')) {
         _showConnectionErrorDialog();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -81,7 +82,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     final username = _regUsernameController.text.trim();
     final fullName = _regFullNameController.text.trim();
     final email = _regEmailController.text.trim();
-    final password = _regPasswordController.text.trim();
+    final password = _regPasswordController.text;
 
     if (username.isEmpty || email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -93,10 +94,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       return;
     }
 
-    if (password.length < 4) {
+    if (password.length < 8) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Şifre en az 4 karakter olmalıdır.'),
+          content: Text('Şifre en az 8 karakter olmalıdır.'),
           backgroundColor: Colors.orange,
         ),
       );
@@ -112,10 +113,11 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       await auth.updateProfile(fullName: fullName);
     }
 
+    if (!mounted) return;
     setState(() => _isSubmitting = false);
 
-    if (!success && mounted) {
-      if (auth.error != null && (auth.error!.contains('Connection error') || auth.error!.contains('Sunucuya bağlanılamadı'))) {
+    if (!success) {
+      if (auth.error != null && auth.error!.contains('Sunucuya bağlanılamadı')) {
         _showConnectionErrorDialog();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -151,7 +153,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             ),
             SizedBox(height: 10),
             Text(
-              '• Telefon ve bilgisayarınız aynı Wi-Fi ağına bağlı olmalıdır.\n• Veya "Demo Modu" ile tüm 5.000+ kelimeyi hemen kullanabilirsiniz.',
+              '• Telefon ve bilgisayarınız aynı Wi-Fi ağına bağlı olmalıdır.\n• Sunucu adresinin doğru olduğunu kontrol edin.',
               style: TextStyle(color: AppColors.grey, fontSize: 13, height: 1.4),
             ),
           ],
@@ -170,13 +172,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               foregroundColor: AppColors.darkNavy,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            onPressed: () {
-              Navigator.pop(ctx);
-              _loginUsernameController.text = 'admin';
-              _loginPasswordController.text = '1234';
-              _handleLogin();
-            },
-            child: const Text('Demo Giriş Yap', style: TextStyle(fontWeight: FontWeight.bold)),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Tamam', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -370,31 +367,6 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           isLoading: _isSubmitting,
           onTap: _handleLogin,
         ),
-        const SizedBox(height: 14),
-        // Hızlı Deneme Girişi Butonu
-        OutlinedButton(
-          style: OutlinedButton.styleFrom(
-            side: const BorderSide(color: AppColors.cardBorder),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-          ),
-          onPressed: () {
-            _loginUsernameController.text = 'admin';
-            _loginPasswordController.text = '1234';
-            _handleLogin();
-          },
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.bolt, color: AppColors.yellow, size: 20),
-              SizedBox(width: 8),
-              Text(
-                'Demo Hesapla Hemen Başla (Admin)',
-                style: TextStyle(color: AppColors.yellow, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -424,7 +396,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           const SizedBox(height: 12),
           _inputField(
             controller: _regPasswordController,
-            hint: 'Şifre (en az 4 karakter)',
+            hint: 'Şifre (en az 8 karakter)',
             icon: Icons.lock_outline,
             isPassword: true,
           ),

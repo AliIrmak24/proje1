@@ -2,6 +2,7 @@ import '../../domain/entities/word.dart';
 
 class WordModel extends Word {
   WordModel({
+    required super.id,
     required super.word,
     required super.translation,
     required super.level,
@@ -11,6 +12,7 @@ class WordModel extends Word {
 
   factory WordModel.fromJson(Map<String, dynamic> json) {
     return WordModel(
+      id: json['id'] as int? ?? 0,
       word: json['word'] ?? "Bilinmiyor",
       translation: json['translation'] ?? "Çeviri yok",
       level: json['level'] ?? "A1",
@@ -29,6 +31,8 @@ class MeaningModel extends Meaning {
     required super.partOfSpeech,
     required super.definition,
     super.example,
+    super.exampleTranslation,
+    super.exampleSource,
   });
 
   factory MeaningModel.fromJson(Map<String, dynamic> json) {
@@ -36,6 +40,8 @@ class MeaningModel extends Meaning {
       partOfSpeech: json['part_of_speech'] ?? json['partOfSpeech'] ?? "",
       definition: json['definition'] ?? "",
       example: json['example'],
+      exampleTranslation: json['example_translation'],
+      exampleSource: json['example_source'],
     );
   }
 }

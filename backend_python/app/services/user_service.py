@@ -1,3 +1,4 @@
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.repository.user_repository import UserRepository
 from app.schemas.user_schema import UserCreate, UserLogin, UserUpdate
@@ -19,19 +20,23 @@ class UserService:
             plain_pwd_bytes = plain_password.encode('utf-8')
             hashed_pwd_bytes = hashed_password.encode('utf-8')
             return bcrypt.checkpw(plain_pwd_bytes, hashed_pwd_bytes)
-        except Exception:
-            # Yedek kontrol (düz metin demo hesapları için)
-            return plain_password == hashed_password
+        except ValueError:
+            # Geçersiz hash veya bcrypt sınırını aşan şifre eşleşme sayılmaz
+            return False
 
     def register_user(self, db: Session, user: UserCreate):
         if user_repo.get_user_by_email(db, user.email):
             raise ValueError("Bu e-posta adresi zaten kayıtlı")
-        
+
         if user_repo.get_user_by_username(db, user.username):
             raise ValueError("Bu kullanıcı adı zaten alınmış")
-            
+
         hashed_pw = self.get_password_hash(user.password)
-        return user_repo.create_user(db, user, hashed_pw)
+        try:
+            return user_repo.create_user(db, user, hashed_pw)
+        except IntegrityError:
+            db.rollback()
+            raise ValueError("Bu kullanıcı adı veya e-posta zaten kayıtlı")
 
     def login_user(self, db: Session, login_data: UserLogin):
         identifier = login_data.email or login_data.username
@@ -41,10 +46,9 @@ class UserService:
         user = user_repo.get_user_by_email(db, identifier) or user_repo.get_user_by_username(db, identifier)
         if not user or not self.verify_password(login_data.password, user.hashed_password):
             raise ValueError("Kullanıcı adı/e-posta veya şifre hatalı")
-            
-        access_token = create_access_token(data={"sub": user.email})
+
         return {
-            "access_token": access_token,
+            "access_token": create_access_token(user.id, user.token_version),
             "token_type": "bearer",
             "user": user
         }
@@ -54,7 +58,7 @@ class UserService:
             existing = user_repo.get_user_by_username(db, update_data.username)
             if existing and existing.id != user.id:
                 raise ValueError("Bu kullanıcı adı başka bir üye tarafından kullanılıyor")
-                
+
         if update_data.email and update_data.email != user.email:
             existing_email = user_repo.get_user_by_email(db, update_data.email)
             if existing_email and existing_email.id != user.id:
@@ -69,14 +73,25 @@ class UserService:
             email=update_data.email,
             phone_number=update_data.phone_number,
             avatar_url=update_data.avatar_url,
-            language=update_data.language
+            language=update_data.language,
+            cefr_level=update_data.cefr_level
         )
 
-    def change_password(self, db: Session, user: User, old_pwd: str, new_pwd: str):
+    def change_password(self, db: Session, user: User, old_pwd: str, new_pwd: str) -> str:
         if not self.verify_password(old_pwd, user.hashed_password):
             raise ValueError("Mevcut şifreniz hatalı")
-        if len(new_pwd) < 4:
-            raise ValueError("Yeni şifre en az 4 karakter olmalıdır")
 
-        new_hash = self.get_password_hash(new_pwd)
-        return user_repo.update_password(db, user, new_hash)
+        user.hashed_password = self.get_password_hash(new_pwd)
+        user.token_version += 1
+        db.commit()
+        return create_access_token(user.id, user.token_version)
+
+    def logout(self, db: Session, user: User):
+        user.token_version += 1
+        db.commit()
+
+    def delete_account(self, db: Session, user: User, password: str):
+        if not self.verify_password(password, user.hashed_password):
+            raise ValueError("Şifreniz hatalı")
+        db.delete(user)
+        db.commit()

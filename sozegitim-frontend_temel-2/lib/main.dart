@@ -5,11 +5,7 @@ import 'package:flutter/services.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/screens/main_screen.dart';
 import 'presentation/screens/auth_screen.dart';
-import 'presentation/providers/dictionary_provider.dart';
 import 'presentation/providers/auth_provider.dart';
-import 'domain/usecases/search_word_usecase.dart';
-import 'data/repositories/word_repository_impl.dart';
-import 'data/datasources/word_remote_datasource.dart';
 import 'core/network/api_client.dart';
 
 Future<void> main() async {
@@ -40,19 +36,11 @@ Future<void> main() async {
   // Varsa kayıtlı mobil sunucu adresini yükle
   await ApiClient.initCustomBaseUrl();
 
-  final apiClient = ApiClient(); 
-  final remoteDataSource = WordRemoteDataSource(apiClient: apiClient);
-  final myRepository = WordRepositoryImpl(remoteDataSource: remoteDataSource); 
-  final mySearchUseCase = SearchWordUseCase(repository: myRepository);
+  final apiClient = ApiClient();
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(
-          create: (_) => DictionaryProvider(
-            searchWordUseCase: mySearchUseCase, 
-          ),
-        ),
         ChangeNotifierProvider(
           create: (_) {
             final authProvider = AuthProvider(apiClient: apiClient);
@@ -109,11 +97,11 @@ class _SozEgitimAppState extends State<SozEgitimApp> with WidgetsBindingObserver
       theme: AppTheme.darkTheme,
       builder: (context, child) {
         final mediaQuery = MediaQuery.of(context);
-        // Farklı telefonlardaki devasa sistem font ayarlarının arayüzü ve kutuları
-        // patlatmasını/taşırmasını önlemek için textScaler'ı dengeli bir aralığa (0.85 - 1.05) sabitliyoruz!
+        // Çok büyük sistem yazı boyutlarının kartları taşırmasını önlerken
+        // görme zorluğu olan kullanıcılar için büyütmeye izin verilir.
         final clampedScaler = mediaQuery.textScaler.clamp(
           minScaleFactor: 0.85,
-          maxScaleFactor: 1.05,
+          maxScaleFactor: 1.3,
         );
 
         return MediaQuery(

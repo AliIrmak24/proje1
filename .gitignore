@@ -28,3 +28,10 @@ ephemeral/
 # IDE files
 .idea/
 *.iml
+# Release dosyalari
+*.apk
+*.aab
+*.jks
+*.keystore
+key.properties
+.pytest_cache/

@@ -1,4 +1,5 @@
 class Word {
+  final int id;
   final String word;
   final String translation;
   final String level;
@@ -6,6 +7,7 @@ class Word {
   final List<Meaning> meanings;
 
   Word({
+    required this.id,
     required this.word,
     required this.translation,
     required this.level,
@@ -18,10 +20,14 @@ class Meaning {
   final String partOfSpeech;
   final String definition;
   final String? example;
+  final String? exampleTranslation;
+  final String? exampleSource;
 
   Meaning({
     required this.partOfSpeech,
     required this.definition,
     this.example,
+    this.exampleTranslation,
+    this.exampleSource,
   });
 }

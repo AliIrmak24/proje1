@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_colors.dart';
+import '../providers/auth_provider.dart';
 import 'home_screen.dart';
 import 'dictionary_screen.dart';
 import 'profile_screen.dart';
@@ -19,58 +22,73 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int selectedIndex = 0;
 
-  void goHome() {
+  // Sekmeler ilk açıldığında oluşturulur, sonra durumlarını korur
+  final Set<int> _visitedPages = {0};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _offerPlacementTest());
+  }
+
+  // Seviyesi belli olmayan kullanıcıya bir kez seviye testi önerilir
+  Future<void> _offerPlacementTest() async {
+    final user = context.read<AuthProvider>().currentUser;
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted || user == null || user.cefrLevel != null) return;
+    if (prefs.getBool('placement_prompted') ?? false) return;
+    await prefs.setBool('placement_prompted', true);
+    if (!mounted) return;
+
+    final accepted = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardNavy,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Seviyeni Belirleyelim', style: TextStyle(color: AppColors.yellow, fontWeight: FontWeight.bold)),
+        content: const Text(
+          '18 soruluk kısa test sana uygun kelimeleri seçmemizi sağlar. Sonucu Profil ekranından değiştirebilirsin.',
+          style: TextStyle(color: AppColors.white),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Şimdi Değil', style: TextStyle(color: AppColors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.yellow, foregroundColor: AppColors.darkNavy),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Teste Başla', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (accepted == true && mounted) {
+      openPlacementTest(context);
+    }
+  }
+
+  void _goTo(int index) {
     setState(() {
-      selectedIndex = 0;
+      selectedIndex = index;
+      _visitedPages.add(index);
     });
   }
 
-  void goDictionary() {
-    setState(() {
-      selectedIndex = 1;
-    });
-  }
-
-  void goQuiz() {
-    setState(() {
-      selectedIndex = 2;
-    });
-  }
-
-  void goProfile() {
-    setState(() {
-      selectedIndex = 3;
-    });
-  }
-
-  void goMatching() {
-    setState(() {
-      selectedIndex = 4;
-    });
-  }
-
-  void goSettings() {
-    setState(() {
-      selectedIndex = 5;
-    });
-  }
-
-  void goPersonalInfo() {
-    setState(() {
-      selectedIndex = 6;
-    });
-  }
-
-  void goFriends() {
-    setState(() {
-      selectedIndex = 7;
-    });
-  }
+  void goHome() => _goTo(0);
+  void goDictionary() => _goTo(1);
+  void goQuiz() => _goTo(2);
+  void goProfile() => _goTo(3);
+  void goMatching() => _goTo(4);
+  void goSettings() => _goTo(5);
+  void goPersonalInfo() => _goTo(6);
+  void goFriends() => _goTo(7);
 
   @override
   Widget build(BuildContext context) {
     final pages = [
       HomeScreen(
+        isActive: selectedIndex == 0,
         onGoDictionary: goDictionary,
         onGoQuiz: goQuiz,
         onGoProfile: goProfile,
@@ -86,6 +104,7 @@ class _MainScreenState extends State<MainScreen> {
       ),
 
       ProfileScreen(
+        isActive: selectedIndex == 3,
         onGoHome: goHome,
         onGoSettings: goSettings,
         onGoFriends: goFriends,
@@ -112,7 +131,13 @@ class _MainScreenState extends State<MainScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.darkNavy,
-      body: pages[selectedIndex],
+      body: IndexedStack(
+        index: selectedIndex,
+        children: [
+          for (var i = 0; i < pages.length; i++)
+            _visitedPages.contains(i) ? pages[i] : const SizedBox.shrink(),
+        ],
+      ),
       bottomNavigationBar: SafeArea(
         top: false,
         child: Container(
@@ -126,12 +151,8 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ),
           child: BottomNavigationBar(
-            currentIndex: selectedIndex < 5 ? selectedIndex : 0,
-            onTap: (index) {
-              setState(() {
-                selectedIndex = index;
-              });
-            },
+            currentIndex: selectedIndex < 5 ? selectedIndex : 3,
+            onTap: _goTo,
             backgroundColor: AppColors.cardNavy,
             selectedItemColor: AppColors.yellow,
             unselectedItemColor: AppColors.grey,
@@ -158,7 +179,7 @@ class _MainScreenState extends State<MainScreen> {
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.sports_esports_rounded),
-                label: 'Eşleştirme',
+                label: 'Oyunlar',
               ),
             ],
           ),

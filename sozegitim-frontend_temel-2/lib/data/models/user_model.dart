@@ -9,6 +9,7 @@ class UserModel {
   final String? bio;
   final String? avatarUrl;
   final String? language;
+  final String? cefrLevel;
   final DateTime? createdAt;
 
   const UserModel({
@@ -22,6 +23,7 @@ class UserModel {
     this.bio,
     this.avatarUrl,
     this.language,
+    this.cefrLevel,
     this.createdAt,
   });
 
@@ -41,6 +43,7 @@ class UserModel {
       bio: json['bio'] as String?,
       avatarUrl: json['avatar_url'] as String?,
       language: json['language'] as String?,
+      cefrLevel: json['cefr_level'] as String?,
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'] as String)
           : null,
@@ -59,35 +62,25 @@ class UserModel {
       'bio': bio,
       'avatar_url': avatarUrl,
       'language': language,
+      'cefr_level': cefrLevel,
       'created_at': createdAt?.toIso8601String(),
     };
   }
 
-  UserModel copyWith({
-    int? id,
-    String? username,
-    String? email,
-    int? xp,
-    int? level,
-    String? fullName,
-    String? phoneNumber,
-    String? bio,
-    String? avatarUrl,
-    String? language,
-    DateTime? createdAt,
-  }) {
+  UserModel copyWith({int? xp, int? level}) {
     return UserModel(
-      id: id ?? this.id,
-      username: username ?? this.username,
-      email: email ?? this.email,
+      id: id,
+      username: username,
+      email: email,
       xp: xp ?? this.xp,
       level: level ?? this.level,
-      fullName: fullName ?? this.fullName,
-      phoneNumber: phoneNumber ?? this.phoneNumber,
-      bio: bio ?? this.bio,
-      avatarUrl: avatarUrl ?? this.avatarUrl,
-      language: language ?? this.language,
-      createdAt: createdAt ?? this.createdAt,
+      fullName: fullName,
+      phoneNumber: phoneNumber,
+      bio: bio,
+      avatarUrl: avatarUrl,
+      language: language,
+      cefrLevel: cefrLevel,
+      createdAt: createdAt,
     );
   }
 }

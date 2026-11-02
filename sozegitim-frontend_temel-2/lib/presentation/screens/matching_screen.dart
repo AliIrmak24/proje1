@@ -2,9 +2,12 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/speech/speaker.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/network/api_client.dart';
+import '../../data/offline_words.dart';
 import '../providers/auth_provider.dart';
+import 'reading_screen.dart';
 
 enum MatchScreenState {
   lobby,          // Oyun Modu Seçimi ve Lobi
@@ -13,32 +16,7 @@ enum MatchScreenState {
   matchingResult, // Eşleştirme oyun sonucu
   flashcards,     // 3D Kart çevirme modu
   flashcardResult,// Kart çevirme sonucu
-  readingList,    // Metin Okuma (Reading) Listesi
-  readingDetail,  // Metin Okuma Detayı
-}
-
-class ReadingArticle {
-  final String id;
-  final String title;
-  final String turkishTitle;
-  final String level;
-  final String category;
-  final int readingTimeMinutes;
-  final String englishContent;
-  final String turkishSummary;
-  final List<Map<String, String>> keyVocabulary;
-
-  ReadingArticle({
-    required this.id,
-    required this.title,
-    required this.turkishTitle,
-    required this.level,
-    required this.category,
-    required this.readingTimeMinutes,
-    required this.englishContent,
-    required this.turkishSummary,
-    required this.keyVocabulary,
-  });
+  reading,        // Metin Okuma (Reading)
 }
 
 class MatchingScreen extends StatefulWidget {
@@ -54,6 +32,7 @@ class MatchingScreen extends StatefulWidget {
 }
 
 class MatchingPair {
+  final int? id; // Sunucudan gelen kelimelerde ilerleme kaydı için
   final String english;
   final String turkish;
   final String level;
@@ -61,6 +40,7 @@ class MatchingPair {
   final String example;
 
   MatchingPair({
+    this.id,
     required this.english,
     required this.turkish,
     required this.level,
@@ -86,6 +66,9 @@ class _MatchingScreenState extends State<MatchingScreen>
   int currentCardIndex = 0;
   int masteredCardCount = 0;
   final List<MatchingPair> _reviewWordsPool = [];
+  List<MatchingPair> _flashcards = [];
+  bool _flashcardsOffline = false;
+  int _flashcardXp = 0;
 
   // Eşleştirme Oyunu Değişkenleri
   Timer? _searchTimer;
@@ -112,144 +95,6 @@ class _MatchingScreenState extends State<MatchingScreen>
   int _opponentLevel = 2;
   int _opponentScore = 0;
   Timer? _opponentTimer;
-
-  // Başlangıç / Çevrimdışı Sözlük Havuzu
-  final List<MatchingPair> _vocabularyPool = [
-    MatchingPair(english: 'Ambition', turkish: 'Arzu, hırs, azim', level: 'B2', phonetic: '/æmˈbɪʃ.ən/', example: 'Her ambition is to create great apps.'),
-    MatchingPair(english: 'Resilient', turkish: 'Dirençli, çabuk toparlanan', level: 'B2', phonetic: '/rɪˈzɪl.jənt/', example: 'Resilient people bounce back quickly.'),
-    MatchingPair(english: 'Curious', turkish: 'Meraklı, ilgili', level: 'A2', phonetic: '/ˈkjʊə.ri.əs/', example: 'Children are curious about nature.'),
-    MatchingPair(english: 'Inspire', turkish: 'İlham vermek', level: 'B1', phonetic: '/ɪnˈspaɪər/', example: 'Her work inspires many students.'),
-    MatchingPair(english: 'Challenge', turkish: 'Meydan okuma, zorluk', level: 'B1', phonetic: '/ˈtʃæl.ɪndʒ/', example: 'Learning languages is a noble challenge.'),
-    MatchingPair(english: 'Brave', turkish: 'Cesur, korkusuz', level: 'A1', phonetic: '/breɪv/', example: 'The brave soldier protected everyone.'),
-    MatchingPair(english: 'Knowledge', turkish: 'Bilgi, birikim', level: 'A2', phonetic: '/ˈnɒl.ɪdʒ/', example: 'Knowledge brings freedom.'),
-    MatchingPair(english: 'Persevere', turkish: 'Sebat etmek, azmetmek', level: 'C1', phonetic: '/ˌpɜː.sɪˈvɪər/', example: 'Persevere through all difficulties.'),
-  ];
-
-  ReadingArticle? _selectedArticle;
-  String? _readingFilterLevel;
-  bool _showTurkishTranslation = false;
-
-  final List<ReadingArticle> _articlesPool = [
-    ReadingArticle(
-      id: '1',
-      title: 'The Magic of Morning Walks',
-      turkishTitle: 'Sabah Yürüyüşlerinin Sihri',
-      level: 'A1-A2',
-      category: 'Sağlık & Yaşam',
-      readingTimeMinutes: 2,
-      englishContent: '''Walking in the morning is one of the simplest habits for a healthy life. When you wake up early and step outside, the fresh air gives you energy. The city is still quiet, and the sun rises gently in the sky.
-
-Scientists say that walking twenty minutes every day makes your heart stronger and improves your mood. You can listen to gentle music, watch birds in the trees, or simply enjoy the peaceful silence.
-
-Start your tomorrow with a short walk. You will feel energized, positive, and ready for all challenges of the day!''',
-      turkishSummary: 'Sabahları erken saatte yapılan kısa yürüyüşler hem kalp sağlığını güçlendirir hem de güne zinde ve pozitif başlamanızı sağlar. Sessiz sokaklar ve temiz hava gün boyu odaklanmanıza yardımcı olur.',
-      keyVocabulary: [
-        {'word': 'Habit', 'translation': 'Alışkanlık', 'level': 'A2'},
-        {'word': 'Peaceful', 'translation': 'Huzurlu, sakin', 'level': 'A2'},
-        {'word': 'Improve', 'translation': 'Geliştirmek, iyileştirmek', 'level': 'A2'},
-        {'word': 'Challenge', 'translation': 'Zorluk, meydan okuma', 'level': 'B1'},
-      ],
-    ),
-    ReadingArticle(
-      id: '2',
-      title: 'Coffee Culture Around the World',
-      turkishTitle: 'Dünya Genelinde Kahve Kültürü',
-      level: 'A1-A2',
-      category: 'Kültür & Seyahat',
-      readingTimeMinutes: 2,
-      englishContent: '''Coffee is much more than a hot drink; it is a global tradition that connects millions of people every day. In Italy, people drink a quick espresso at the bar counter before heading to work. In Turkey, Turkish coffee is served with water and sweet delight, celebrated for deep conversations and hospitality.
-
-In modern Scandinavian countries, the concept of "Fika" means taking a dedicated break with colleagues to drink coffee and eat cinnamon buns. Wherever you travel in the world, sharing a cup of coffee opens doors to new friendships.''',
-      turkishSummary: 'Kahve sadece bir içecek değil, insanları bir araya getiren evrensel bir gelenektir. İtalya\'daki hızlı espresso kültüründen Türkiye\'deki dostluk kahvesine ve İskandinav "Fika" molasına kadar her kültür kahveye özel bir anlam yükler.',
-      keyVocabulary: [
-        {'word': 'Tradition', 'translation': 'Gelenek, anane', 'level': 'A2'},
-        {'word': 'Hospitality', 'translation': 'Misafirperverlik', 'level': 'B1'},
-        {'word': 'Connect', 'translation': 'Bağlamak, birleştirmek', 'level': 'A2'},
-        {'word': 'Colleague', 'translation': 'İş arkadaşı, meslektaş', 'level': 'B1'},
-      ],
-    ),
-    ReadingArticle(
-      id: '3',
-      title: 'Artificial Intelligence and Future Jobs',
-      turkishTitle: 'Yapay Zeka ve Geleceğin Meslekleri',
-      level: 'B1-B2',
-      category: 'Teknoloji & Bilim Haberi',
-      readingTimeMinutes: 3,
-      englishContent: '''Artificial intelligence is transforming industries at an extraordinary pace. From healthcare and education to software development and automated finance, intelligent systems can analyze vast amounts of data in seconds.
-
-While routine and repetitive tasks are increasingly automated, experts emphasize that human creativity, critical thinking, and emotional empathy can never be replaced by algorithms. The professionals of tomorrow will not compete against AI; instead, they will collaborate with intelligent tools to solve complex global challenges.
-
-Lifelong learning and adaptability have therefore become the most vital skills of the modern economic era.''',
-      turkishSummary: 'Yapay zeka teknolojileri rutin işleri otomatikleştirirken; yaratıcılık, empati ve eleştirel düşünme insanı vazgeçilmez kılmaya devam ediyor. Geleceğin başarılı çalışanları yapay zekayla rekabet etmek yerine onunla işbirliği yapabilen ve sürekli öğrenen bireyler olacaktır.',
-      keyVocabulary: [
-        {'word': 'Transform', 'translation': 'Dönüştürmek, başkalaştırmak', 'level': 'B2'},
-        {'word': 'Extraordinary', 'translation': 'Olağanüstü, fevkalade', 'level': 'B1'},
-        {'word': 'Collaborate', 'translation': 'İşbirliği yapmak', 'level': 'B2'},
-        {'word': 'Adaptability', 'translation': 'Uyum yeteneği, esneklik', 'level': 'B2'},
-      ],
-    ),
-    ReadingArticle(
-      id: '4',
-      title: 'Renewable Energy: The Solar Revolution',
-      turkishTitle: 'Yenilenebilir Enerji: Güneş Devrimi',
-      level: 'B1-B2',
-      category: 'Çevre & Dünya Haberi',
-      readingTimeMinutes: 3,
-      englishContent: '''As global climate concerns intensify, renewable energy has evolved from an alternative idea into the cornerstone of global infrastructure. Over the past decade, the cost of manufacturing solar photovoltaic panels has plummeted by more than eighty percent.
-
-Nations across Europe and Asia are constructing massive solar parks that power millions of homes without generating greenhouse gases. Breakthroughs in battery storage technology are addressing the intermittency problem, ensuring electricity remains available even when clouds gather.
-
-The transition toward green energy represents the greatest industrial transformation of our century, fostering economic growth while preserving the biosphere for posterity.''',
-      turkishSummary: 'Güneş panellerinin maliyetlerindeki büyük düşüş ve batarya teknolojilerindeki devrimler, yenilenebilir enerjiyi küresel enerjinin temeli haline getiriyor. Bu yeşil dönüşüm hem ekonomik kalkınma sağlıyor hem de gezegenimizi koruyor.',
-      keyVocabulary: [
-        {'word': 'Infrastructure', 'translation': 'Altyapı', 'level': 'B2'},
-        {'word': 'Plummet', 'translation': 'Hızla düşmek, çakılmak', 'level': 'B2'},
-        {'word': 'Intermittent', 'translation': 'Aralıklı, kesintili', 'level': 'B2'},
-        {'word': 'Posterity', 'translation': 'Gelecek nesiller, ahfad', 'level': 'C1'},
-      ],
-    ),
-    ReadingArticle(
-      id: '5',
-      title: 'The Cognitive Architecture of Memory',
-      turkishTitle: 'Hafızanın Bilişsel Mimarisi',
-      level: 'C1-C2',
-      category: 'Bilim & Psikoloji',
-      readingTimeMinutes: 4,
-      englishContent: '''Human memory is not a passive archive storing pristine records of the past; rather, it is a dynamic, reconstructive cognitive apparatus shaped by neuroplasticity. Contemporary neuroscience demonstrates that every act of recollection subtly recalibrates the underlying synaptic configuration.
-
-Through the mechanism of long-term potentiation, neurons forge robust conduits in response to repeated intellectual stimulation. When learners engage in active recall and spaced repetition, knowledge transcends ephemeral working memory and crystallizes into semantic frameworks within the cerebral cortex.
-
-Understanding these neurobiological principles empowers language learners to orchestrate highly efficacious study paradigms, overcoming the inevitable decay of forgotten information.''',
-      turkishSummary: 'Hafıza pasif bir kayıt deposu değil, her hatırlamada yeniden inşa edilen dinamik bir sinirsel ağdır. Aktif hatırlama ve aralıklı tekrar yöntemleri, bilgiyi geçici hafızadan kalıcı serebral korteks yapılarına aktararak kusursuz bir dil öğrenme verimliliği sağlar.',
-      keyVocabulary: [
-        {'word': 'Neuroplasticity', 'translation': 'Beyin esnekliği, nöroplastisite', 'level': 'C2'},
-        {'word': 'Recalibrate', 'translation': 'Yeniden ayarlamak', 'level': 'C1'},
-        {'word': 'Ephemeral', 'translation': 'Geçici, uçucu', 'level': 'C2'},
-        {'word': 'Efficacious', 'translation': 'Son derece etkili, yararlı', 'level': 'C1'},
-      ],
-    ),
-    ReadingArticle(
-      id: '6',
-      title: 'Philosophy of Resilience in the Digital Era',
-      turkishTitle: 'Dijital Çağda Dirayet ve Felsefe',
-      level: 'C1-C2',
-      category: 'Felsefe & Kültür',
-      readingTimeMinutes: 4,
-      englishContent: '''In an era characterized by relentless notifications and hyper-connectivity, cultivating philosophical fortitude has become an indispensable imperative. The ancient Stoics posited that tranquility is derived not from controlling extraneous circumstances, but from mastering one's internal cognitive interpretations.
-
-Modern psychological research vindicates this venerable axiom. Individuals endowed with cognitive equanimity navigate algorithmic noise without relinquishing their moral agency. By prioritizing deliberateness over frantic reactivity, one develops an unassailable sanctuary of mental peace.
-
-True intellectual maturity lies in the discernment between the mutable ephemeral and the transcendent eternal.''',
-      turkishSummary: 'Sürekli bildirim ve uyaran bombardımanı altında geçen dijital çağda zihinsel dirayet vazgeçilmez bir erdemdir. Stoacı felsefe ve modern psikoloji, huzurun dış dünyayı değil kendi içsel tepkilerimizi yönetmekten geçtiğini doğrulamaktadır.',
-      keyVocabulary: [
-        {'word': 'Fortitude', 'translation': 'Metanet, ruh gücü, dirayet', 'level': 'C1'},
-        {'word': 'Extraneous', 'translation': 'Dışsal, konu dışı', 'level': 'C1'},
-        {'word': 'Equanimity', 'translation': 'Sükunet, soğukkanlılık', 'level': 'C2'},
-        {'word': 'Discernment', 'translation': 'Basiret, ince kavrayış, sezgi', 'level': 'C2'},
-      ],
-    ),
-  ];
-
 
   @override
   void initState() {
@@ -280,8 +125,6 @@ True intellectual maturity lies in the discernment between the mutable ephemeral
     flipAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: flipController, curve: Curves.easeInOut),
     );
-
-    _loadWordsFromBackend();
   }
 
   @override
@@ -296,60 +139,63 @@ True intellectual maturity lies in the discernment between the mutable ephemeral
     super.dispose();
   }
 
-  Future<void> _loadWordsFromBackend() async {
-    try {
-      final res = await _apiClient.get('/api/words/');
-      if (mounted && res is List && res.isNotEmpty) {
-        final List<MatchingPair> loaded = [];
-        for (final item in res) {
-          final map = item as Map<String, dynamic>;
-          final meanings = map['meanings'] as List?;
-          String ex = '';
-          if (meanings != null && meanings.isNotEmpty) {
-            ex = meanings[0]['example']?.toString() ?? '';
-          }
-          loaded.add(
-            MatchingPair(
-              english: map['word']?.toString() ?? '',
-              turkish: map['translation']?.toString() ?? '',
-              level: map['level']?.toString() ?? 'A1',
-              phonetic: map['phonetic']?.toString() ?? '',
-              example: ex,
-            ),
-          );
-        }
-        if (loaded.length >= 5) {
-          setState(() {
-            _vocabularyPool.clear();
-            _vocabularyPool.addAll(loaded);
-          });
-        }
-      }
-    } catch (_) {}
-  }
-
   // --- EŞLEŞTİRME OYUNU BAŞLATMA ---
   void _startSearchingOpponent() {
     setState(() {
       _currentState = MatchScreenState.searching;
     });
 
-    final opponents = ['Alex (İngiltere)', 'Mehmet (Türkiye)', 'Emma (Kanada)', 'AI Öğretmen'];
-    _opponentName = opponents[Random().nextInt(opponents.length)];
+    _opponentName = 'Alıştırma Botu';
     _opponentLevel = Random().nextInt(3) + 1;
 
     // 2.5 saniye sonra oyunu başlat
     _searchTimer?.cancel();
-    _searchTimer = Timer(const Duration(milliseconds: 2500), () {
-      if (!mounted) return;
-      _initMatchingGame();
+    _searchTimer = Timer(const Duration(milliseconds: 1200), () async {
+      final pairs = await _loadGamePairs();
+      if (!mounted || _currentState != MatchScreenState.searching) return;
+      _initMatchingGame(pairs);
     });
   }
 
-  void _initMatchingGame() {
-    _vocabularyPool.shuffle();
-    final selectedPairs = _vocabularyPool.take(5).toList();
+  MatchingPair _pairFromJson(Map<String, dynamic> map) {
+    final meanings = map['meanings'] as List?;
+    return MatchingPair(
+      id: map['id'] as int?,
+      english: map['word']?.toString() ?? '',
+      turkish: map['translation']?.toString() ?? '',
+      level: map['level']?.toString() ?? 'A1',
+      phonetic: map['phonetic']?.toString() ?? '',
+      example: meanings != null && meanings.isNotEmpty ? meanings[0]['example']?.toString() ?? '' : '',
+    );
+  }
 
+  Future<List<MatchingPair>> _offlinePairs(int count) async {
+    final words = [...await OfflineWords.load()]..shuffle();
+    final seen = <String>{};
+    return words
+        .where((w) => seen.add(w.translation))
+        .take(count)
+        .map((w) => MatchingPair(
+              english: w.word,
+              turkish: w.translation,
+              level: w.level,
+              phonetic: w.phonetic ?? '',
+              example: w.meanings.isNotEmpty ? w.meanings.first.example ?? '' : '',
+            ))
+        .toList();
+  }
+
+  Future<List<MatchingPair>> _loadGamePairs() async {
+    try {
+      final level = context.read<AuthProvider>().currentUser?.cefrLevel;
+      final res = await _apiClient.get('/api/words/random?count=5${level == null ? '' : '&level=$level'}');
+      final pairs = (res as List<dynamic>).map((w) => _pairFromJson(w as Map<String, dynamic>)).toList();
+      if (pairs.length == 5) return pairs;
+    } catch (_) {}
+    return _offlinePairs(5);
+  }
+
+  void _initMatchingGame(List<MatchingPair> selectedPairs) {
     _allGamePairs = List.from(selectedPairs);
     _shuffledEnglish = selectedPairs.map((p) => p.english).toList()..shuffle();
     _shuffledTurkish = selectedPairs.map((p) => p.turkish).toList()..shuffle();
@@ -461,23 +307,14 @@ True intellectual maturity lies in the discernment between the mutable ephemeral
 
     final auth = context.read<AuthProvider>();
     if (auth.isAuthenticated) {
-      try {
-        final res = await _apiClient.post('/api/quiz/submit', {
-          'correct_answers': correctMatches + (timeBonus ~/ 10),
+      final earnedXp = await auth.awardActivityXp('matching', correctMatches + (timeBonus ~/ 10));
+      if (mounted) {
+        setState(() {
+          _earnedXp = earnedXp;
+          _submitMessage = earnedXp > 0
+              ? 'Tebrikler! Puanların liderlik tablosuna kaydedildi.'
+              : 'Bu oyundan XP kazanılamadı (bağlantı yok veya günlük sınır doldu).';
         });
-        if (mounted) {
-          setState(() {
-            _earnedXp = (res['earned_xp'] as num?)?.toInt() ?? _earnedXp;
-            _submitMessage = 'Tebrikler! Puanların liderlik tablosuna kaydedildi.';
-          });
-        }
-        await auth.fetchUserProfile();
-      } catch (_) {
-        if (mounted) {
-          setState(() {
-            _submitMessage = 'Puanın başarıyla hesaplandı (+$_earnedXp XP).';
-          });
-        }
       }
     } else {
       _submitMessage = 'Misafir Modu: Puanlarını liderlik tablosuna kaydetmek için giriş yapmalısın!';
@@ -485,12 +322,25 @@ True intellectual maturity lies in the discernment between the mutable ephemeral
   }
 
   // --- FLASHCARDS MODU ---
-  void _startFlashcards() {
-    _vocabularyPool.shuffle();
+  Future<void> _startFlashcards() async {
+    List<MatchingPair> cards;
+    _flashcardsOffline = false;
+    try {
+      final res = await _apiClient.get('/api/learn/session?limit=10') as List<dynamic>;
+      cards = res.map((item) => _pairFromJson(item['word'] as Map<String, dynamic>)).toList();
+    } catch (_) {
+      _flashcardsOffline = true;
+      cards = await _offlinePairs(10);
+    }
+    if (!mounted || cards.isEmpty) return;
+
     setState(() {
+      _flashcards = cards;
       _currentState = MatchScreenState.flashcards;
       currentCardIndex = 0;
       masteredCardCount = 0;
+      _flashcardXp = 0;
+      _reviewWordsPool.clear();
       isCardFront = true;
     });
     flipController.reset();
@@ -508,8 +358,22 @@ True intellectual maturity lies in the discernment between the mutable ephemeral
     });
   }
 
+  Future<void> _recordFlashcard(MatchingPair pair, bool mastered) async {
+    if (pair.id == null) return;
+    try {
+      final res = await _apiClient.post('/api/learn/review', {'word_id': pair.id, 'known': mastered});
+      _flashcardXp += (res['earned_xp'] as num).toInt();
+      if (mounted) {
+        await context.read<AuthProvider>().applyXpResult(res as Map<String, dynamic>);
+      }
+    } catch (_) {
+      // Bağlantı koparsa kart oturumu sürer, sonuç kaydedilmez
+    }
+  }
+
   void _onFlashcardAnswer(bool mastered) {
-    final currentPair = _vocabularyPool[currentCardIndex];
+    final currentPair = _flashcards[currentCardIndex];
+    _recordFlashcard(currentPair, mastered);
     if (mastered) {
       masteredCardCount++;
     } else {
@@ -527,7 +391,7 @@ True intellectual maturity lies in the discernment between the mutable ephemeral
       );
     }
 
-    if (currentCardIndex < min(10, _vocabularyPool.length) - 1) {
+    if (currentCardIndex < _flashcards.length - 1) {
       setState(() {
         currentCardIndex++;
         isCardFront = true;
@@ -538,34 +402,12 @@ True intellectual maturity lies in the discernment between the mutable ephemeral
     }
   }
 
-  Future<void> _finishFlashcards() async {
-    _earnedXp = masteredCardCount * 10;
+  void _finishFlashcards() {
     setState(() {
+      _earnedXp = _flashcardXp;
+      _submitMessage = _flashcardsOffline ? 'Çevrimdışı çalışmada ilerleme kaydedilmez.' : null;
       _currentState = MatchScreenState.flashcardResult;
     });
-
-    final auth = context.read<AuthProvider>();
-    if (auth.isAuthenticated) {
-      try {
-        await _apiClient.post('/api/quiz/submit', {
-          'correct_answers': masteredCardCount,
-        });
-        await auth.fetchUserProfile();
-        if (mounted) {
-          setState(() {
-            _submitMessage = 'Tebrikler! Kart puanların profilinize eklendi.';
-          });
-        }
-      } catch (_) {
-        if (mounted) {
-          setState(() {
-            _submitMessage = 'Harika çalışma! +$_earnedXp XP kazandın.';
-          });
-        }
-      }
-    } else {
-      _submitMessage = 'Misafir Modu: Puanlarını kaydetmek için giriş yapmalısın!';
-    }
   }
 
   @override
@@ -583,10 +425,10 @@ True intellectual maturity lies in the discernment between the mutable ephemeral
         return _buildFlashcardsScreen();
       case MatchScreenState.flashcardResult:
         return _buildFlashcardResultScreen();
-      case MatchScreenState.readingList:
-        return _buildReadingListScreen();
-      case MatchScreenState.readingDetail:
-        return _buildReadingDetailScreen();
+      case MatchScreenState.reading:
+        return ReadingScreen(
+          onGoBack: () => setState(() => _currentState = MatchScreenState.lobby),
+        );
     }
   }
 
@@ -687,8 +529,8 @@ True intellectual maturity lies in the discernment between the mutable ephemeral
               // MOD 1: Hızlı Kelime Eşleştirme
               _gameModeCard(
                 icon: Icons.sports_kabaddi,
-                title: 'Kelime Eşleştirme Düellosu',
-                description: '45 saniyede İngilizce ve Türkçe kelimeleri doğru eşleştir, rakibini yen!',
+                title: 'Kelime Eşleştirme',
+                description: '45 saniyede İngilizce ve Türkçe kelimeleri eşleştir, alıştırma botunu geç!',
                 color: AppColors.yellow,
                 badge: 'Popüler & Hızlı',
                 onTap: _startSearchingOpponent,
@@ -699,8 +541,8 @@ True intellectual maturity lies in the discernment between the mutable ephemeral
               // MOD 2: Akıllı 3D Kart Çevirme (Flashcards)
               _gameModeCard(
                 icon: Icons.style_rounded,
-                title: 'Akıllı Kart Çevirme (Flashcards)',
-                description: 'Kelimeleri 3D kart çevirerek öğren, telaffuz ve örnek cümlelerle hafızana kazı!',
+                title: 'Kelime Kartları (Aralıklı Tekrar)',
+                description: 'Tekrarı gelen kelimeleri çalış, telaffuzu dinle ve yeni kelimeler öğren!',
                 color: AppColors.blue,
                 badge: 'Öğren & Tekrar Et',
                 onTap: _startFlashcards,
@@ -711,15 +553,12 @@ True intellectual maturity lies in the discernment between the mutable ephemeral
               // MOD 3: Seviyeli Metin Okuma (Reading)
               _gameModeCard(
                 icon: Icons.menu_book_rounded,
-                title: 'Metin Okuma (Reading & Haberler)',
-                description: 'A1-C2 seviyeli yabancı haberler ve makaleler oku, kilit kelimeleri öğren!',
+                title: 'Metin Okuma',
+                description: 'Seviyeli metinleri oku, kilit kelimeleri öğren ve anlama sorularını çöz!',
                 color: Colors.orangeAccent,
                 badge: 'Yeni 📰',
                 onTap: () {
-                  setState(() {
-                    _currentState = MatchScreenState.readingList;
-                    _readingFilterLevel = null;
-                  });
+                  setState(() => _currentState = MatchScreenState.reading);
                 },
               ),
 
@@ -838,7 +677,7 @@ True intellectual maturity lies in the discernment between the mutable ephemeral
               const Icon(Icons.sports_kabaddi, color: AppColors.yellow, size: 48),
               const SizedBox(height: 14),
               const Text(
-                'Yarışma Eşleşmesi',
+                'Alıştırma Hazırlanıyor',
                 style: TextStyle(
                   color: AppColors.white,
                   fontSize: 28,
@@ -847,7 +686,7 @@ True intellectual maturity lies in the discernment between the mutable ephemeral
               ),
               const SizedBox(height: 8),
               const Text(
-                'Sana uygun bir rakip aranıyor...',
+                'Alıştırma botu ve kelimeler hazırlanıyor...',
                 style: TextStyle(color: AppColors.grey, fontSize: 17),
               ),
               const SizedBox(height: 36),
@@ -909,7 +748,6 @@ True intellectual maturity lies in the discernment between the mutable ephemeral
               ),
 
               const SizedBox(height: 36),
-              _infoCard(),
               const SizedBox(height: 28),
               _cancelButton(() {
                 _searchTimer?.cancel();
@@ -1301,8 +1139,8 @@ True intellectual maturity lies in the discernment between the mutable ephemeral
 
   // 5. FLASHCARDS (3D KART ÇEVİRME) EKRANI
   Widget _buildFlashcardsScreen() {
-    final pair = _vocabularyPool[currentCardIndex];
-    final totalCards = min(10, _vocabularyPool.length);
+    final pair = _flashcards[currentCardIndex];
+    final totalCards = _flashcards.length;
 
     return Scaffold(
       backgroundColor: AppColors.darkNavy,
@@ -1468,6 +1306,12 @@ True intellectual maturity lies in the discernment between the mutable ephemeral
               ),
             ),
           ],
+          const SizedBox(height: 14),
+          IconButton(
+            tooltip: 'Telaffuzu dinle',
+            onPressed: () => Speaker.speak(pair.english),
+            icon: const Icon(Icons.volume_up_rounded, color: AppColors.yellow, size: 34),
+          ),
         ],
       ),
     );
@@ -1651,6 +1495,14 @@ True intellectual maturity lies in the discernment between the mutable ephemeral
   }
 
   // --- YARDIMCI BİLEŞENLER ---
+  BoxDecoration _cardDecoration() {
+    return BoxDecoration(
+      color: AppColors.cardNavy,
+      borderRadius: BorderRadius.circular(24),
+      border: Border.all(color: AppColors.cardBorder),
+    );
+  }
+
   Widget _header({VoidCallback? onBackOverride}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1754,42 +1606,6 @@ True intellectual maturity lies in the discernment between the mutable ephemeral
     );
   }
 
-  Widget _infoCard() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: _cardDecoration(),
-      child: const Row(
-        children: [
-          Icon(Icons.access_time, color: AppColors.blue, size: 36),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Tahmini Bekleme', style: TextStyle(color: AppColors.grey, fontSize: 13)),
-                SizedBox(height: 4),
-                Text('2 - 5 saniye', style: TextStyle(color: AppColors.blue, fontSize: 16, fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-          SizedBox(width: 10),
-          Icon(Icons.groups_outlined, color: AppColors.yellow, size: 36),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Aktif Oyuncu', style: TextStyle(color: AppColors.grey, fontSize: 13)),
-                SizedBox(height: 4),
-                Text('1.420 Kişi', style: TextStyle(color: AppColors.yellow, fontSize: 16, fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _tipCard() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -1833,7 +1649,7 @@ True intellectual maturity lies in the discernment between the mutable ephemeral
             Icon(Icons.close, color: Colors.redAccent),
             SizedBox(width: 10),
             Text(
-              'Aramayı İptal Et',
+              'İptal Et',
               style: TextStyle(color: Colors.redAccent, fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ],
@@ -1878,458 +1694,6 @@ True intellectual maturity lies in the discernment between the mutable ephemeral
           ],
         ),
       ),
-    );
-  }
-
-  // 7. METİN OKUMA LİSTESİ EKRANI
-  Widget _buildReadingListScreen() {
-    final filtered = _readingFilterLevel == null
-        ? _articlesPool
-        : _articlesPool.where((a) => a.level.contains(_readingFilterLevel!)).toList();
-
-    return Scaffold(
-      backgroundColor: AppColors.darkNavy,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
-              child: Row(
-                children: [
-                  _squareButton(Icons.arrow_back, () {
-                    setState(() => _currentState = MatchScreenState.lobby);
-                  }),
-                  const SizedBox(width: 14),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Metin Okuma (Reading)',
-                          style: TextStyle(color: AppColors.yellow, fontSize: 22, fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          'Yabancı haberler ve seviyeli makaleler',
-                          style: TextStyle(color: AppColors.grey, fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Seviye Filtre Çipleri
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Row(
-                children: [
-                  _readingFilterChip('Tümü', null),
-                  const SizedBox(width: 8),
-                  _readingFilterChip('A1-A2 Başlangıç', 'A'),
-                  const SizedBox(width: 8),
-                  _readingFilterChip('B1-B2 Orta', 'B'),
-                  const SizedBox(width: 8),
-                  _readingFilterChip('C1-C2 İleri', 'C'),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            // Metin Kartları Listesi
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-                itemCount: filtered.length,
-                itemBuilder: (context, index) {
-                  final article = filtered[index];
-                  return _readingArticleCard(article);
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _readingFilterChip(String label, String? key) {
-    final isSelected = _readingFilterLevel == key;
-    return GestureDetector(
-      onTap: () {
-        setState(() => _readingFilterLevel = key);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.yellow : AppColors.cardNavy,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: isSelected ? AppColors.yellow : AppColors.cardBorder),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? AppColors.darkNavy : AppColors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _readingArticleCard(ReadingArticle article) {
-    Color levelColor = AppColors.blue;
-    if (article.level.contains('B')) levelColor = AppColors.green;
-    if (article.level.contains('C')) levelColor = Colors.purpleAccent;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.cardNavy,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.cardBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: levelColor.withAlpha(35),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: levelColor, width: 0.9),
-                ),
-                child: Text(
-                  article.level,
-                  style: TextStyle(color: levelColor, fontWeight: FontWeight.bold, fontSize: 12),
-                ),
-              ),
-              Row(
-                children: [
-                  const Icon(Icons.timer_outlined, color: AppColors.grey, size: 16),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${article.readingTimeMinutes} dk okuma',
-                    style: const TextStyle(color: AppColors.grey, fontSize: 12),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            article.title,
-            style: const TextStyle(color: AppColors.white, fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            article.turkishTitle,
-            style: const TextStyle(color: AppColors.yellow, fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            article.englishContent.split('\n\n').first,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: AppColors.grey, fontSize: 13, height: 1.4),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '🏷️ ${article.category}',
-                style: const TextStyle(color: AppColors.grey, fontSize: 12),
-              ),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.yellow,
-                  foregroundColor: AppColors.darkNavy,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                ),
-                icon: const Icon(Icons.menu_book, size: 16),
-                label: const Text('Metni Oku', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                onPressed: () {
-                  setState(() {
-                    _selectedArticle = article;
-                    _showTurkishTranslation = false;
-                    _currentState = MatchScreenState.readingDetail;
-                  });
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 8. METİN DETAY EKRANI
-  Widget _buildReadingDetailScreen() {
-    final article = _selectedArticle;
-    if (article == null) {
-      return _buildReadingListScreen();
-    }
-
-    Color levelColor = AppColors.blue;
-    if (article.level.contains('B')) levelColor = AppColors.green;
-    if (article.level.contains('C')) levelColor = Colors.purpleAccent;
-
-    return Scaffold(
-      backgroundColor: AppColors.darkNavy,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-              child: Row(
-                children: [
-                  _squareButton(Icons.arrow_back, () {
-                    setState(() => _currentState = MatchScreenState.readingList);
-                  }),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          article.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: AppColors.white, fontSize: 19, fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          '${article.level} • ${article.category}',
-                          style: TextStyle(color: levelColor, fontSize: 13, fontWeight: FontWeight.bold),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Orijinal İngilizce Metin Kartı
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: AppColors.cardNavy,
-                        borderRadius: BorderRadius.circular(22),
-                        border: Border.all(color: AppColors.cardBorder),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.article_outlined, color: AppColors.yellow, size: 22),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'İngilizce Orijinal Metin',
-                                style: TextStyle(color: AppColors.yellow, fontSize: 16, fontWeight: FontWeight.bold),
-                              ),
-                              const Spacer(),
-                              Text(
-                                '⏱️ ${article.readingTimeMinutes} dk',
-                                style: const TextStyle(color: AppColors.grey, fontSize: 12),
-                              ),
-                            ],
-                          ),
-                          const Divider(color: AppColors.cardBorder, height: 24),
-                          Text(
-                            article.englishContent,
-                            style: const TextStyle(
-                              color: AppColors.white,
-                              fontSize: 16,
-                              height: 1.6,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 18),
-
-                    // Katlanabilir Türkçe Çeviri / Özet Kartı
-                    GestureDetector(
-                      onTap: () {
-                        setState(() => _showTurkishTranslation = !_showTurkishTranslation);
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppColors.cardNavy,
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: AppColors.blue.withAlpha(120)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.translate_rounded, color: AppColors.blue, size: 20),
-                                const SizedBox(width: 8),
-                                const Expanded(
-                                  child: Text(
-                                    'Türkçe Çeviri & Özet',
-                                    style: TextStyle(color: AppColors.blue, fontSize: 15, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                                Icon(
-                                  _showTurkishTranslation ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                                  color: AppColors.grey,
-                                ),
-                              ],
-                            ),
-                            if (_showTurkishTranslation) ...[
-                              const SizedBox(height: 12),
-                              Text(
-                                article.turkishSummary,
-                                style: const TextStyle(color: AppColors.white, fontSize: 14.5, height: 1.5),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 18),
-
-                    // Kilit Kelimeler Kartı
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: AppColors.navy,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColors.yellow.withAlpha(100)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Row(
-                            children: [
-                              Icon(Icons.vpn_key_outlined, color: AppColors.yellow, size: 20),
-                              SizedBox(width: 8),
-                              Text(
-                                '📌 Metindeki Kilit Kelimeler',
-                                style: TextStyle(color: AppColors.yellow, fontSize: 15, fontWeight: FontWeight.bold),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          ...article.keyVocabulary.map((vocab) {
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.yellow.withAlpha(30),
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      vocab['level'] ?? 'B1',
-                                      style: const TextStyle(color: AppColors.yellow, fontSize: 10, fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    '${vocab['word']}: ',
-                                    style: const TextStyle(color: AppColors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                                  ),
-                                  Expanded(
-                                    child: Text(
-                                      vocab['translation'] ?? '',
-                                      style: const TextStyle(color: AppColors.grey, fontSize: 13),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // "Okumayı Bitirdim" Butonu
-                    GestureDetector(
-                      onTap: () {
-                        context.read<AuthProvider>().addXp(15);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Tebrikler! Okuma tamamlandı (+15 XP kazandın) 🏆'),
-                            backgroundColor: Colors.green,
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                        setState(() => _currentState = MatchScreenState.readingList);
-                      },
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(colors: [AppColors.yellow, Color(0xFFFFA726)]),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.yellow.withAlpha(80),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.check_circle, color: AppColors.darkNavy, size: 22),
-                            SizedBox(width: 8),
-                            Text(
-                              'Okumayı Bitirdim (+15 XP)',
-                              style: TextStyle(
-                                color: AppColors.darkNavy,
-                                fontSize: 17,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  BoxDecoration _cardDecoration() {
-    return BoxDecoration(
-      color: AppColors.cardNavy,
-      borderRadius: BorderRadius.circular(22),
-      border: Border.all(color: AppColors.cardBorder),
     );
   }
 }
